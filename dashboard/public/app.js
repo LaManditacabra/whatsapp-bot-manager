@@ -132,10 +132,13 @@ async function loadClientDetail(id) {
 
   document.getElementById('clientDetail').innerHTML = `
     <div class="max-w-3xl">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h3 class="text-2xl font-bold">${data.business_name || data.name}</h3>
-          <p class="text-gray-500">${data.phone || ''}</p>
+      <div class="flex items-start justify-between mb-4">
+        <div class="flex items-start gap-3">
+          <div>
+            <h3 class="text-2xl font-bold">${data.business_name || data.name}</h3>
+            <p class="text-gray-500">${data.phone || ''}</p>
+          </div>
+          <button onclick="showEditClient('${id}', ${JSON.stringify(data).replace(/"/g,'&quot;')})" class="text-blue-500 hover:text-blue-700 text-sm mt-1" title="Editar bot">✏️</button>
         </div>
         <div class="flex items-center gap-2">
           <span class="px-3 py-1 rounded-full text-sm ${data.status === 'online' ? 'bg-green-100 text-green-700' : data.status === 'awaiting_scan' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}">
@@ -176,7 +179,10 @@ async function loadClientDetail(id) {
                 ${p.price ? `<span class="text-gray-500">$${p.price}</span>` : ''}
                 ${p.description ? `<p class="text-sm text-gray-400">${p.description}</p>` : ''}
               </div>
-              <button onclick="deleteProduct('${id}', ${p.id})" class="text-red-400 hover:text-red-600 text-sm">Eliminar</button>
+              <div class="flex gap-2">
+                <button onclick="showEditProduct('${id}', ${JSON.stringify(p).replace(/"/g,'&quot;')})" class="text-blue-400 hover:text-blue-600 text-sm">✏️</button>
+                <button onclick="deleteProduct('${id}', ${p.id})" class="text-red-400 hover:text-red-600 text-sm">🗑️</button>
+              </div>
             </div>
           `).join('') || '<p class="text-gray-400 text-sm">Sin productos.</p>'}
         </div>
@@ -321,44 +327,152 @@ async function upgradePlan(planId) {
   }
 }
 
-// ─── CRUD ───────────────────────────────────────────────────────
-function showAddClient() {
-  document.getElementById('modalTitle').textContent = 'Nuevo Bot';
-  document.getElementById('modal-name').value = '';
-  document.getElementById('modal-phone').value = '';
-  document.getElementById('modal-business').value = '';
-  document.getElementById('modal').classList.remove('hidden');
-  document.getElementById('modal').classList.add('flex');
+// ─── Loading States ─────────────────────────────────────────────
+function showLoading(text = 'Cargando...') {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  document.getElementById('loadingOverlay').classList.add('flex');
 }
 
-function closeModal() {
-  document.getElementById('modal').classList.add('hidden');
-  document.getElementById('modal').classList.remove('flex');
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.add('hidden');
+  document.getElementById('loadingOverlay').classList.remove('flex');
+}
+
+// ─── CRUD ───────────────────────────────────────────────────────
+function showAddClient() {
+  document.getElementById('clientModalTitle').textContent = 'Nuevo Bot';
+  document.getElementById('clientModal-name').value = '';
+  document.getElementById('clientModal-phone').value = '';
+  document.getElementById('clientModal-business').value = '';
+  document.getElementById('clientModal').dataset.editId = '';
+  document.getElementById('clientModal').classList.remove('hidden');
+  document.getElementById('clientModal').classList.add('flex');
+}
+
+function showEditClient(id, data) {
+  document.getElementById('clientModalTitle').textContent = 'Editar Bot';
+  document.getElementById('clientModal-name').value = data.name || '';
+  document.getElementById('clientModal-phone').value = data.phone || '';
+  document.getElementById('clientModal-business').value = data.business_name || '';
+  document.getElementById('clientModal').dataset.editId = id;
+  document.getElementById('clientModal').classList.remove('hidden');
+  document.getElementById('clientModal').classList.add('flex');
+}
+
+function closeClientModal() {
+  document.getElementById('clientModal').classList.add('hidden');
+  document.getElementById('clientModal').classList.remove('flex');
 }
 
 async function saveClient() {
-  const name = document.getElementById('modal-name').value;
-  const phone = document.getElementById('modal-phone').value;
-  const business_name = document.getElementById('modal-business').value;
+  const name = document.getElementById('clientModal-name').value;
+  const phone = document.getElementById('clientModal-phone').value;
+  const business_name = document.getElementById('clientModal-business').value;
   if (!name) return alert('El nombre es obligatorio');
-  const res = await fetch(API + '/api/clients', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ name, phone, business_name }),
-  });
-  if (res.status === 403) {
-    const data = await res.json();
-    return alert(data.error);
+  const editId = document.getElementById('clientModal').dataset.editId;
+  const isEdit = !!editId;
+  showLoading(isEdit ? 'Guardando...' : 'Creando bot...');
+  try {
+    if (isEdit) {
+      await api(`/api/clients/${editId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name, phone, business_name }),
+      });
+    } else {
+      const res = await fetch(API + '/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name, phone, business_name }),
+      });
+      if (res.status === 403) {
+        const data = await res.json();
+        hideLoading();
+        return alert(data.error);
+      }
+    }
+    closeClientModal();
+    loadClients();
+    if (isEdit && currentClientId === editId) loadClientDetail(editId);
+  } catch (e) {
+    alert('Error al guardar');
   }
-  closeModal();
-  loadClients();
+  hideLoading();
+}
+
+// ─── Products (modal-based) ──────────────────────────────────────
+let _editingProductId = null;
+let _editingProductClientId = null;
+
+function showAddProduct(clientId) {
+  _editingProductId = null;
+  _editingProductClientId = clientId;
+  document.getElementById('productModalTitle').textContent = 'Nuevo Producto';
+  document.getElementById('productModal-name').value = '';
+  document.getElementById('productModal-price').value = '';
+  document.getElementById('productModal-emoji').value = '🔹';
+  document.getElementById('productModal-desc').value = '';
+  document.getElementById('productModalBtn').textContent = 'Guardar';
+  document.getElementById('productModal').classList.remove('hidden');
+  document.getElementById('productModal').classList.add('flex');
+}
+
+function showEditProduct(clientId, product) {
+  _editingProductId = product.id;
+  _editingProductClientId = clientId;
+  document.getElementById('productModalTitle').textContent = 'Editar Producto';
+  document.getElementById('productModal-name').value = product.name;
+  document.getElementById('productModal-price').value = product.price || '';
+  document.getElementById('productModal-emoji').value = product.emoji || '🔹';
+  document.getElementById('productModal-desc').value = product.description || '';
+  document.getElementById('productModalBtn').textContent = 'Actualizar';
+  document.getElementById('productModal').classList.remove('hidden');
+  document.getElementById('productModal').classList.add('flex');
+}
+
+function closeProductModal() {
+  document.getElementById('productModal').classList.add('hidden');
+  document.getElementById('productModal').classList.remove('flex');
+  _editingProductId = null;
+  _editingProductClientId = null;
+}
+
+async function saveProduct() {
+  const clientId = _editingProductClientId;
+  if (!clientId) return;
+  const name = document.getElementById('productModal-name').value;
+  const price = document.getElementById('productModal-price').value;
+  const emoji = document.getElementById('productModal-emoji').value || '🔹';
+  const description = document.getElementById('productModal-desc').value;
+  if (!name) return alert('El nombre es obligatorio');
+  showLoading('Guardando producto...');
+  try {
+    if (_editingProductId) {
+      await api(`/api/clients/${clientId}/products/${_editingProductId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name, price: price ? parseFloat(price) : null, emoji, description }),
+      });
+    } else {
+      await api(`/api/clients/${clientId}/products`, {
+        method: 'POST',
+        body: JSON.stringify({ name, price: price ? parseFloat(price) : null, emoji, description, category: 'General' }),
+      });
+    }
+    closeProductModal();
+    loadClientDetail(clientId);
+  } catch (e) {
+    alert('Error al guardar producto');
+  }
+  hideLoading();
 }
 
 async function deleteClient(id) {
   if (!confirm('¿Eliminar este cliente? Se perderán todos los datos.')) return;
+  showLoading('Eliminando bot...');
   await api(`/api/clients/${id}`, { method: 'DELETE' });
   currentClientId = null;
   loadClients();
+  hideLoading();
   document.getElementById('clientDetail').innerHTML = `
     <div class="text-center text-gray-400 mt-20">
       <p class="text-4xl mb-4">👈</p>
@@ -367,42 +481,31 @@ async function deleteClient(id) {
 }
 
 async function restartClient(id) {
+  showLoading('Reconectando...');
   await api(`/api/clients/${id}/restart`, { method: 'POST' });
   loadClientDetail(id);
+  hideLoading();
 }
 
-// ─── Products ───────────────────────────────────────────────────
-function showAddProduct(clientId) {
-  const name = prompt('Nombre del producto:');
-  if (!name) return;
-  const price = prompt('Precio (opcional, ej: 1500):');
-  const desc = prompt('Descripción (opcional):');
-  api(`/api/clients/${clientId}/products`, {
-    method: 'POST',
-    body: JSON.stringify({
-      name,
-      price: price ? parseFloat(price) : null,
-      description: desc || '',
-      category: 'General',
-      emoji: '🔹',
-    }),
-  }).then(() => loadClientDetail(clientId));
-}
-
+// ─── Products (legacy removed, now uses modal) ──────────────────
 async function deleteProduct(clientId, productId) {
   if (!confirm('¿Eliminar este producto?')) return;
+  showLoading('Eliminando...');
   await api(`/api/clients/${clientId}/products/${productId}`, { method: 'DELETE' });
   loadClientDetail(clientId);
+  hideLoading();
 }
 
 // ─── Settings ───────────────────────────────────────────────────
 async function saveClientSettings(id) {
+  showLoading('Guardando configuración...');
   const horario = document.getElementById('set-horario')?.value || '';
   const contacto = document.getElementById('set-contacto')?.value || '';
   await api(`/api/clients/${id}/settings`, {
     method: 'PUT',
     body: JSON.stringify({ horario, contacto }),
   });
+  hideLoading();
   alert('Configuración guardada');
 }
 
@@ -418,6 +521,7 @@ async function loadGlobalSettings() {
 }
 
 async function saveGlobalSettings() {
+  showLoading('Guardando configuración global...');
   const prefix = document.getElementById('set-prefix').value;
   const cooldown = document.getElementById('set-cooldown').value;
   const body = { bot_prefix: prefix, bot_cooldown: cooldown };
@@ -430,6 +534,7 @@ async function saveGlobalSettings() {
     method: 'PUT',
     body: JSON.stringify(body),
   });
+  hideLoading();
   alert('Configuración global guardada');
 }
 

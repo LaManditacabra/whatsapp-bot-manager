@@ -146,19 +146,47 @@
   </div>
 </div>
 
-<!-- Add Client Modal -->
-<div id="modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+<!-- Client Modal (crear/editar bot) -->
+<div id="clientModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
   <div class="bg-white rounded-lg p-6 w-96">
-    <h3 class="text-lg font-semibold mb-4" id="modalTitle">Nuevo Bot</h3>
+    <h3 class="text-lg font-semibold mb-4" id="clientModalTitle">Nuevo Bot</h3>
     <div class="space-y-3">
-      <input id="modal-name" class="w-full border rounded px-3 py-2" placeholder="Nombre del negocio">
-      <input id="modal-phone" class="w-full border rounded px-3 py-2" placeholder="WhatsApp (ej: 5491112345678)">
-      <input id="modal-business" class="w-full border rounded px-3 py-2" placeholder="Nombre comercial (opcional)">
+      <input id="clientModal-name" class="w-full border rounded px-3 py-2" placeholder="Nombre del negocio">
+      <input id="clientModal-phone" class="w-full border rounded px-3 py-2" placeholder="WhatsApp (ej: 5491112345678)">
+      <input id="clientModal-business" class="w-full border rounded px-3 py-2" placeholder="Nombre comercial (opcional)">
     </div>
     <div class="flex justify-end gap-2 mt-4">
-      <button onclick="closeModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+      <button onclick="closeClientModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
       <button onclick="saveClient()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Guardar</button>
     </div>
+  </div>
+</div>
+
+<!-- Product Modal (crear/editar producto) -->
+<div id="productModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-lg p-6 w-96">
+    <h3 class="text-lg font-semibold mb-4" id="productModalTitle">Nuevo Producto</h3>
+    <div class="space-y-3">
+      <input id="productModal-name" class="w-full border rounded px-3 py-2" placeholder="Nombre">
+      <input id="productModal-price" type="number" step="0.01" class="w-full border rounded px-3 py-2" placeholder="Precio (opcional)">
+      <input id="productModal-emoji" class="w-full border rounded px-3 py-2" placeholder="Emoji (ej: 🍕)">
+      <textarea id="productModal-desc" class="w-full border rounded px-3 py-2 text-sm" placeholder="Descripción (opcional)" rows="2"></textarea>
+    </div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button onclick="closeProductModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+      <button onclick="saveProduct()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" id="productModalBtn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="fixed inset-0 bg-black/30 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-lg p-6 flex items-center gap-3 shadow-xl">
+    <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+    <span id="loadingText" class="text-gray-700">Cargando...</span>
   </div>
 </div>
 

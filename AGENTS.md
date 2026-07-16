@@ -194,7 +194,9 @@ Domingos: Cerrado
    - `POST /api/paypal/webhook` → webhook `PAYMENT.CAPTURE.COMPLETED`
    - Precios en USD: Premium $9.99/mes, Ilimitado $24.99/mes
    - Admin configura `paypal_client_id`, `paypal_client_secret`, `paypal_mode` en settings
-2. **Landing page**: página pública con GitHub Pages (info, planes, descarga Electron)
+2. ~~**Landing page**~~ → **GitHub Pages lista** en `lamanditacabra.github.io/whatsapp-bot-manager/`
+   - `docs/index.html` con Tailwind CDN (Hero, Features, Planes, Descarga, Footer)
+   - Servida también en `localhost:3001/landing`
 3. **DDNS + Cloudflare**: dominio gratis (no-ip.com) ocultando IP real con Cloudflare
 4. **Mejoras frontend**: editar productos (no solo crear/eliminar), editar nombre/telefono del bot, loading states
 

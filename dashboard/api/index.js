@@ -133,6 +133,20 @@ app.delete('/api/clients/:id', authMiddleware, (req, res) => {
   res.json({ success: true });
 });
 
+app.put('/api/clients/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { name, phone, business_name } = req.body;
+  db.prepare('UPDATE clients SET name = COALESCE(?, name), phone = COALESCE(?, phone), business_name = COALESCE(?, business_name) WHERE id = ?')
+    .run(name || null, phone !== undefined ? phone : null, business_name || null, id);
+  const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  res.json(updated);
+});
+
 app.post('/api/clients/:id/restart', authMiddleware, (req, res) => {
   const { id } = req.params;
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
