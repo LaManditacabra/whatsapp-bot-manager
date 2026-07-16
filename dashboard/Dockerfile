@@ -1,22 +1,26 @@
-FROM node:20-slim
-
+FROM node:20-alpine AS base
+RUN apk add --no-cache python3 make g++
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ git \
-    && rm -rf /var/lib/apt/lists/*
+# ─── Dashboard deps ───────────────────────────────────────────────
+FROM base AS dashboard-deps
+COPY dashboard/package.json dashboard/package-lock.json* ./
+RUN npm ci --omit=dev
 
-COPY dashboard/package*.json ./dashboard/
-COPY bot/package*.json ./bot/
+# ─── Bot worker deps ──────────────────────────────────────────────
+FROM base AS bot-deps
+COPY bot/package.json bot/package-lock.json* ./bot/
+WORKDIR /app/bot
+RUN npm ci --omit=dev
+WORKDIR /app
 
-RUN cd dashboard && npm install
-RUN cd bot && npm install
-
-COPY dashboard/ ./dashboard/
-COPY bot/ ./bot/
-
-RUN mkdir -p /app/data/clients
-
+# ─── Final image ──────────────────────────────────────────────────
+FROM base AS final
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=dashboard-deps /app/node_modules ./node_modules
+COPY --from=bot-deps /app/bot/node_modules /bot/node_modules
+COPY dashboard/ ./
+COPY bot/ /bot/
 EXPOSE 3001
-
-CMD ["node", "dashboard/api/index.js"]
+CMD ["node", "api/index.js"]

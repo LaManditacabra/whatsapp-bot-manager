@@ -150,9 +150,15 @@ async function handleMessage(sock, msg) {
     if (elapsed < cooldown) return;
   }
 
-  await sock.sendMessage(jid, { text: getHelpText(config.name || 'Mi Bot') });
+  const welcome = setting(db, 'autoreply_welcome', '');
+  await sock.sendMessage(jid, { text: welcome.replace(/\{name\}/g, config.name || 'Mi Bot') || getHelpText(config.name || 'Mi Bot') });
   db.prepare('UPDATE users SET last_auto_reply = datetime(\'now\') WHERE id = ?').run(sender);
   logConversation(db, sender, text, null);
+}
+
+function setting(db, key, fallback) {
+  const row = db.prepare('SELECT value FROM client_settings WHERE key = ?').get(key);
+  return row?.value || fallback;
 }
 
 async function handleCommand(sock, jid, cmd, args, db, config) {
@@ -160,36 +166,59 @@ async function handleCommand(sock, jid, cmd, args, db, config) {
 
   switch (cmd) {
     case 'help': {
-      const text = getHelpText(name);
+      const custom = setting(db, 'autoreply_help', '');
+      const text = custom || getHelpText(name);
       await sock.sendMessage(jid, { text });
       break;
     }
     case 'productos':
     case 'menu': {
-      const products = db.prepare(`
-        SELECT name, description, price, emoji, category
-        FROM client_products
-        ORDER BY sort_order
-      `).all();
-      const text = getProductsText(name, products);
-      await sock.sendMessage(jid, { text });
+      const custom = setting(db, 'autoreply_productos', '');
+      if (custom) {
+        await sock.sendMessage(jid, { text: custom.replace(/\{name\}/g, name) });
+      } else {
+        const products = db.prepare(`
+          SELECT name, description, price, emoji, category
+          FROM client_products
+          ORDER BY sort_order
+        `).all();
+        await sock.sendMessage(jid, { text: getProductsText(name, products) });
+      }
       break;
     }
     case 'pedido': {
-      const text = getOrderText(name, args);
-      await sock.sendMessage(jid, { text });
+      if (args && args.length > 0) {
+        const custom = setting(db, 'autoreply_pedido_recibido', '');
+        if (custom) {
+          const pedido = args.join(' ');
+          await sock.sendMessage(jid, { text: custom.replace(/\{name\}/g, name).replace(/\{pedido\}/g, pedido) });
+        } else {
+          await sock.sendMessage(jid, { text: getOrderText(name, args) });
+        }
+      } else {
+        const custom = setting(db, 'autoreply_pedido', '');
+        await sock.sendMessage(jid, { text: custom || getOrderText(name, []) });
+      }
       break;
     }
     case 'horario': {
-      const setting = db.prepare("SELECT value FROM client_settings WHERE key = 'horario'").get();
-      const horario = setting?.value || 'Lunes a Sábados: 10:00 - 14:00 y 17:00 - 21:00\nDomingos: Cerrado';
-      await sock.sendMessage(jid, { text: getScheduleText(name, horario) });
+      const custom = setting(db, 'autoreply_horario', '');
+      if (custom) {
+        await sock.sendMessage(jid, { text: custom.replace(/\{name\}/g, name) });
+      } else {
+        const horario = setting(db, 'horario', 'Lunes a Sábados: 10:00 - 14:00 y 17:00 - 21:00\nDomingos: Cerrado');
+        await sock.sendMessage(jid, { text: getScheduleText(name, horario) });
+      }
       break;
     }
     case 'contacto': {
-      const setting = db.prepare("SELECT value FROM client_settings WHERE key = 'contacto'").get();
-      const contacto = setting?.value || '📱 No configurado';
-      await sock.sendMessage(jid, { text: getContactText(name, contacto) });
+      const custom = setting(db, 'autoreply_contacto', '');
+      if (custom) {
+        await sock.sendMessage(jid, { text: custom.replace(/\{name\}/g, name) });
+      } else {
+        const contacto = setting(db, 'contacto', '📱 No configurado');
+        await sock.sendMessage(jid, { text: getContactText(name, contacto) });
+      }
       break;
     }
     default:

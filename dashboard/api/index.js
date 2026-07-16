@@ -23,7 +23,7 @@ app.use('/landing', express.static(join(__dirname, '..', '..', 'docs')));
 const botManager = new BotManager(db);
 
 // ─── Auth ───────────────────────────────────────────────────────
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email y contraseña requeridos' });
@@ -37,17 +37,17 @@ app.post('/api/auth/register', (req, res) => {
   db.prepare('INSERT INTO users (id, email, name, password_hash, role, plan, plan_bots_limit) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(id, email, name || email.split('@')[0], hash, 'user', 'free', 1);
   const user = db.prepare('SELECT id, email, name, role, plan, plan_bots_limit FROM users WHERE id = ?').get(id);
-  const token = generateToken(user);
+  const token = await generateToken(user);
   res.status(201).json({ token, ...user });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return res.status(401).json({ error: 'Email o contraseña incorrectos' });
   }
-  const token = generateToken(user);
+  const token = await generateToken(user);
   res.json({
     token,
     id: user.id,

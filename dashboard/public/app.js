@@ -109,8 +109,11 @@ async function loadClients() {
          onclick="selectClient('${c.id}')">
       <div class="flex items-center justify-between">
         <span class="font-medium">${c.business_name || c.name}</span>
-        <span class="text-sm ${c.status === 'online' ? 'text-green-500' : c.status === 'awaiting_scan' ? 'text-yellow-500' : 'text-gray-400'}">
-          ${c.status === 'online' ? '🟢' : c.status === 'awaiting_scan' ? '🟡' : '⚫'}
+        <span class="flex items-center gap-1">
+          ${c.phone ? `<a href="https://wa.me/${c.phone.replace(/[^0-9]/g,'')}" target="_blank" class="text-green-500 hover:text-green-700 text-sm" title="Abrir WhatsApp" onclick="event.stopPropagation()">💬</a>` : ''}
+          <span class="text-sm ${c.status === 'online' ? 'text-green-500' : c.status === 'awaiting_scan' ? 'text-yellow-500' : 'text-gray-400'}">
+            ${c.status === 'online' ? '🟢' : c.status === 'awaiting_scan' ? '🟡' : '⚫'}
+          </span>
         </span>
       </div>
       <p class="text-sm text-gray-500">${c.phone || ''}</p>
@@ -188,19 +191,53 @@ async function loadClientDetail(id) {
         </div>
       </div>
 
+      <div class="bg-white rounded-lg p-4 mb-4">
+        <h4 class="font-semibold mb-3">🤖 Autorespuestas</h4>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-600">Bienvenida</label>
+            <textarea id="set-ar-welcome" class="w-full border rounded px-3 py-2 text-sm" rows="2">${settings['autoreply_welcome'] || ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600">!help / Menú principal</label>
+            <textarea id="set-ar-help" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_help'] || ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600">!productos / !menu</label>
+            <textarea id="set-ar-productos" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_productos'] || ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600">!pedido (sin args)</label>
+            <textarea id="set-ar-pedido" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_pedido'] || ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600">!pedido (con args / recibido)</label>
+            <textarea id="set-ar-pedido-recibido" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_pedido_recibido'] || ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600">!horario</label>
+            <textarea id="set-ar-horario" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_horario'] || ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600">!contacto</label>
+            <textarea id="set-ar-contacto" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_contacto'] || ''}</textarea>
+          </div>
+        </div>
+      </div>
+
       <div class="bg-white rounded-lg p-4">
         <h4 class="font-semibold mb-3">⚙️ Configuración</h4>
         <div class="space-y-3">
           <div>
-            <label class="block text-sm">Horario</label>
+            <label class="block text-sm font-medium text-gray-600">Horario</label>
             <textarea id="set-horario" class="w-full border rounded px-3 py-2 text-sm">${settings.horario || ''}</textarea>
           </div>
           <div>
-            <label class="block text-sm">Contacto</label>
+            <label class="block text-sm font-medium text-gray-600">Contacto</label>
             <textarea id="set-contacto" class="w-full border rounded px-3 py-2 text-sm">${settings.contacto || ''}</textarea>
           </div>
           <button onclick="saveClientSettings('${id}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">
-            Guardar Configuración
+            Guardar todo
           </button>
         </div>
       </div>
@@ -499,11 +536,20 @@ async function deleteProduct(clientId, productId) {
 // ─── Settings ───────────────────────────────────────────────────
 async function saveClientSettings(id) {
   showLoading('Guardando configuración...');
-  const horario = document.getElementById('set-horario')?.value || '';
-  const contacto = document.getElementById('set-contacto')?.value || '';
+  const body = {
+    horario: document.getElementById('set-horario')?.value || '',
+    contacto: document.getElementById('set-contacto')?.value || '',
+    autoreply_welcome: document.getElementById('set-ar-welcome')?.value || '',
+    autoreply_help: document.getElementById('set-ar-help')?.value || '',
+    autoreply_productos: document.getElementById('set-ar-productos')?.value || '',
+    autoreply_pedido: document.getElementById('set-ar-pedido')?.value || '',
+    autoreply_pedido_recibido: document.getElementById('set-ar-pedido-recibido')?.value || '',
+    autoreply_horario: document.getElementById('set-ar-horario')?.value || '',
+    autoreply_contacto: document.getElementById('set-ar-contacto')?.value || '',
+  };
   await api(`/api/clients/${id}/settings`, {
     method: 'PUT',
-    body: JSON.stringify({ horario, contacto }),
+    body: JSON.stringify(body),
   });
   hideLoading();
   alert('Configuración guardada');

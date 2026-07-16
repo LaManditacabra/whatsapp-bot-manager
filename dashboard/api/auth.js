@@ -1,26 +1,30 @@
-import jwt from 'jsonwebtoken';
+import { SignJWT, jwtVerify } from 'jose';
 import db from './db.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'whatsapp-bot-secret-change-me';
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'whatsapp-bot-secret-change-me');
 
-export function generateToken(user) {
-  return jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+export async function generateToken(user) {
+  return new SignJWT({ userId: user.id, role: user.role })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('7d')
+    .sign(JWT_SECRET);
 }
 
-export function verifyToken(token) {
+export async function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload;
   } catch {
     return null;
   }
 }
 
-export function authMiddleware(req, res, next) {
+export async function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const decoded = verifyToken(header.slice(7));
+  const decoded = await verifyToken(header.slice(7));
   if (!decoded) {
     return res.status(401).json({ error: 'Invalid token' });
   }
@@ -33,7 +37,7 @@ export function authMiddleware(req, res, next) {
   next();
 }
 
-export function adminMiddleware(req, res, next) {
+export async function adminMiddleware(req, res, next) {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden: admin only' });
   }
