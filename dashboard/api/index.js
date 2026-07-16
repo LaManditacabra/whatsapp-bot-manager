@@ -18,7 +18,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(join(__dirname, '..', 'public')));
-app.use('/landing', express.static(join(__dirname, '..', '..', 'landing')));
+app.use('/landing', express.static(join(__dirname, '..', '..', 'docs')));
 
 const botManager = new BotManager(db);
 
