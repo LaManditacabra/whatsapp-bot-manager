@@ -1,0 +1,14 @@
+{
+  "name": "whatsapp-bot-manager",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dashboard": "node dashboard/api/index.js",
+    "dev": "node --watch dashboard/api/index.js",
+    "bot": "node src/index.js",
+    "electron": "cd electron && npm start",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  }
+}

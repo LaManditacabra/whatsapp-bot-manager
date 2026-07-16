@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WhatsApp Bot Manager</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+<div id="app" class="hidden">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-gray-900 text-white flex flex-col">
+      <div class="p-4 border-b border-gray-700">
+        <h1 class="text-lg font-bold">WhatsApp Bot</h1>
+        <p class="text-sm text-gray-400" id="sidebarUser"></p>
+      </div>
+      <nav class="flex-1 p-4">
+        <button onclick="showView('clients')" class="w-full text-left px-3 py-2 rounded hover:bg-gray-700 mb-1">
+          📱 Mis Bots
+        </button>
+        <div id="adminNav" class="hidden">
+          <button onclick="showView('users')" class="w-full text-left px-3 py-2 rounded hover:bg-gray-700 mb-1">
+            👥 Usuarios
+          </button>
+          <button onclick="showView('settings')" class="w-full text-left px-3 py-2 rounded hover:bg-gray-700 mb-1">
+            ⚙️ Configuración
+          </button>
+        </div>
+        <button onclick="showView('plans')" class="w-full text-left px-3 py-2 rounded hover:bg-gray-700 mb-1">
+          💎 Planes
+        </button>
+      </nav>
+      <div class="p-4 border-t border-gray-700 text-sm">
+        <p class="text-gray-400" id="planLabel"></p>
+        <button onclick="logout()" class="text-red-400 hover:text-red-300 mt-1">Cerrar sesión</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Clients View -->
+      <div id="view-clients" class="flex-1 flex flex-col">
+        <div class="p-4 border-b bg-white flex justify-between items-center">
+          <h2 class="text-xl font-semibold">Mis Bots</h2>
+          <button onclick="showAddClient()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
+            + Nuevo Bot
+          </button>
+        </div>
+        <div class="flex-1 flex overflow-hidden">
+          <div class="w-80 border-r bg-white overflow-y-auto">
+            <div id="clientList" class="p-2"></div>
+          </div>
+          <div id="clientDetail" class="flex-1 bg-gray-50 p-6 overflow-y-auto">
+            <div class="text-center text-gray-400 mt-20">
+              <p class="text-4xl mb-4">👈</p>
+              <p>Seleccioná un bot de la lista</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users View (admin only) -->
+      <div id="view-users" class="flex-1 p-6 overflow-y-auto hidden">
+        <h2 class="text-xl font-semibold mb-4">👥 Usuarios</h2>
+        <div id="usersList" class="space-y-2"></div>
+      </div>
+
+      <!-- Settings View (admin only) -->
+      <div id="view-settings" class="flex-1 p-6 overflow-y-auto hidden">
+        <h2 class="text-xl font-semibold mb-4">⚙️ Configuración Global</h2>
+        <div class="bg-white rounded-lg p-6 max-w-2xl space-y-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Prefijo de comandos</label>
+            <input id="set-prefix" class="w-full border rounded px-3 py-2" value="!">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Cooldown (segundos)</label>
+            <input id="set-cooldown" type="number" class="w-full border rounded px-3 py-2" value="172800">
+          </div>
+          <hr class="my-4">
+          <h4 class="font-semibold mb-2">💳 PayPal</h4>
+          <div>
+            <label class="block text-sm font-medium mb-1">Client ID</label>
+            <input id="set-paypal-client-id" class="w-full border rounded px-3 py-2 font-mono text-sm" placeholder="AeB...">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Client Secret</label>
+            <input id="set-paypal-secret" type="password" class="w-full border rounded px-3 py-2 font-mono text-sm" placeholder="E...">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Modo</label>
+            <select id="set-paypal-mode" class="w-full border rounded px-3 py-2">
+              <option value="sandbox">Sandbox (pruebas)</option>
+              <option value="live">Live (producción)</option>
+            </select>
+          </div>
+          <button onclick="saveGlobalSettings()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+            Guardar
+          </button>
+        </div>
+      </div>
+
+      <!-- Plans View -->
+      <div id="view-plans" class="flex-1 p-6 overflow-y-auto hidden">
+        <h2 class="text-xl font-semibold mb-4">💎 Planes</h2>
+        <div id="plansList" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Auth views -->
+<div id="auth-container" class="min-h-screen flex items-center justify-center bg-gray-100">
+  <div class="bg-white p-8 rounded-lg shadow-lg w-96">
+    <div id="login-form">
+      <h1 class="text-2xl font-bold mb-6 text-center">WhatsApp Bot Manager</h1>
+      <div class="space-y-4">
+        <input id="login-email" class="w-full border rounded px-3 py-2" placeholder="Email" type="email">
+        <input id="login-pass" type="password" class="w-full border rounded px-3 py-2" placeholder="Contraseña">
+        <button onclick="login()" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">Ingresar</button>
+        <p class="text-center text-sm text-gray-500">
+          ¿No tenés cuenta?
+          <a href="#" onclick="showRegister()" class="text-blue-600 hover:underline">Registrate</a>
+        </p>
+        <p id="login-error" class="text-red-500 text-sm text-center hidden"></p>
+      </div>
+    </div>
+
+    <div id="register-form" class="hidden">
+      <h1 class="text-2xl font-bold mb-6 text-center">Crear Cuenta</h1>
+      <div class="space-y-4">
+        <input id="reg-name" class="w-full border rounded px-3 py-2" placeholder="Nombre">
+        <input id="reg-email" class="w-full border rounded px-3 py-2" placeholder="Email" type="email">
+        <input id="reg-pass" type="password" class="w-full border rounded px-3 py-2" placeholder="Contraseña">
+        <button onclick="register()" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">Crear cuenta</button>
+        <p class="text-center text-sm text-gray-500">
+          ¿Ya tenés cuenta?
+          <a href="#" onclick="showLogin()" class="text-blue-600 hover:underline">Ingresá</a>
+        </p>
+        <p id="reg-error" class="text-red-500 text-sm text-center hidden"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Client Modal -->
+<div id="modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-lg p-6 w-96">
+    <h3 class="text-lg font-semibold mb-4" id="modalTitle">Nuevo Bot</h3>
+    <div class="space-y-3">
+      <input id="modal-name" class="w-full border rounded px-3 py-2" placeholder="Nombre del negocio">
+      <input id="modal-phone" class="w-full border rounded px-3 py-2" placeholder="WhatsApp (ej: 5491112345678)">
+      <input id="modal-business" class="w-full border rounded px-3 py-2" placeholder="Nombre comercial (opcional)">
+    </div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button onclick="closeModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+      <button onclick="saveClient()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    container_name: whatsapp-bot
+    ports:
+      - "3001:3001"
+    volumes:
+      - "./data:/app/data"
+    env_file:
+      - .env
+    environment:
+      - DASHBOARD_PORT=3001
+      - DATA_DIR=/app/data
+    restart: unless-stopped
