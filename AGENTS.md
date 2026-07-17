@@ -201,18 +201,15 @@ Domingos: Cerrado
 - **Sidebar**: el texto "SaaS" cambió a "Plataformas" y ahora funciona como dropdown clickeable que despliega WhatsApp Bot, Instagram, TikTok, Facebook (sin sección "Plataformas" separada)
 - **Logo SVG**: creado logo personalizado (chat bubble con gradiente indigo) reemplazando la "B" genérica en sidebar, login, y landing page
 
-## Próximos pasos
-1. ~~**Mercado Pago**~~ → **PayPal implementado** (Create Order + Capture + Webhook)
-   - `POST /api/create-preference` → crea orden PayPal, devuelve `approve_link`
-   - `GET /api/paypal/capture` → captura post-pago y actualiza plan
-   - `POST /api/paypal/webhook` → webhook `PAYMENT.CAPTURE.COMPLETED`
-   - Precios en USD: Premium $9.99/mes, Ilimitado $24.99/mes
-   - Admin configura `paypal_client_id`, `paypal_client_secret`, `paypal_mode` en settings
-2. ~~**Landing page**~~ → **GitHub Pages lista** en `lamanditacabra.github.io/whatsapp-bot-manager/`
-   - `docs/index.html` con Tailwind CDN (Hero, Features, Planes, Descarga, Footer)
-   - Servida también en `localhost:3001/landing`
-3. **DDNS + Cloudflare**: dominio gratis (no-ip.com) ocultando IP real con Cloudflare
-4. **Mejoras frontend**: editar productos (no solo crear/eliminar), editar nombre/telefono del bot, loading states
+## Próximos pasos (para mañana 18/07)
+1. **DDNS + Cloudflare**: dominio gratis (no-ip.com) ocultando IP real con Cloudflare
+2. **Mejoras frontend**:
+   - Editar productos inline (no solo crear/eliminar)
+   - Editar nombre/teléfono del bot desde el panel
+   - Loading states en operaciones
+3. **Build Electron para distribución**: empaquetar app de escritorio
+4. **Sistema de tickets / soporte**: canal de comunicación con clientes
+5. **Estadísticas por bot**: mensajes enviados/recibidos, pedidos, etc.
 
 ## Cómo correr
 ```bash
