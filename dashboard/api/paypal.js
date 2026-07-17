@@ -61,7 +61,7 @@ export async function createOrder({ title, price, description, externalReference
         },
       }],
       application_context: {
-        brand_name: 'WhatsApp Bot Manager',
+        brand_name: 'BotAr',
         landing_page: 'NO_PREFERENCE',
         user_action: 'PAY_NOW',
         return_url: returnUrl,

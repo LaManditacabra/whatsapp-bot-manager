@@ -8,7 +8,7 @@
   },
   "build": {
     "appId": "com.whatsappbot.dashboard",
-    "productName": "WhatsApp Bot Manager",
+    "productName": "BotAr",
     "files": [
       "main.js",
       "preload.js"

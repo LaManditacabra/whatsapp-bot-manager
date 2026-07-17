@@ -129,9 +129,12 @@ function selectClient(id) {
 }
 
 async function loadClientDetail(id) {
-  const data = await api(`/api/clients/${id}/status`);
-  const products = await api(`/api/clients/${id}/products`);
-  const settings = await api(`/api/clients/${id}/settings`);
+  const [data, products, settings, keywords] = await Promise.all([
+    api(`/api/clients/${id}/status`),
+    api(`/api/clients/${id}/products`),
+    api(`/api/clients/${id}/settings`),
+    api(`/api/clients/${id}/keywords`),
+  ]);
 
   document.getElementById('clientDetail').innerHTML = `
     <div class="max-w-3xl">
@@ -191,41 +194,32 @@ async function loadClientDetail(id) {
         </div>
       </div>
 
+      <!-- Custom Keywords -->
       <div class="bg-white rounded-lg p-4 mb-4">
-        <h4 class="font-semibold mb-3">🤖 Autorespuestas</h4>
-        <div class="space-y-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-600">Bienvenida</label>
-            <textarea id="set-ar-welcome" class="w-full border rounded px-3 py-2 text-sm" rows="2">${settings['autoreply_welcome'] || ''}</textarea>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-600">!help / Menú principal</label>
-            <textarea id="set-ar-help" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_help'] || ''}</textarea>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-600">!productos / !menu</label>
-            <textarea id="set-ar-productos" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_productos'] || ''}</textarea>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-600">!pedido (sin args)</label>
-            <textarea id="set-ar-pedido" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_pedido'] || ''}</textarea>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-600">!pedido (con args / recibido)</label>
-            <textarea id="set-ar-pedido-recibido" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_pedido_recibido'] || ''}</textarea>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-600">!horario</label>
-            <textarea id="set-ar-horario" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_horario'] || ''}</textarea>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-600">!contacto</label>
-            <textarea id="set-ar-contacto" class="w-full border rounded px-3 py-2 text-sm" rows="3">${settings['autoreply_contacto'] || ''}</textarea>
-          </div>
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-semibold">🔑 Palabras clave (autorespuesta)</h4>
+          <button onclick="showAddKeyword('${id}')" class="text-blue-600 text-sm hover:underline">+ Agregar</button>
+        </div>
+        <div id="keywordList">
+          ${keywords.length === 0 ? '<p class="text-gray-400 text-sm">Sin palabras clave. Agregá usando el botón de arriba.</p>' : keywords.map(k => `
+            <div class="flex items-start justify-between py-2 border-b last:border-0">
+              <div class="flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-sm">${k.keyword}</span>
+                  ${k.is_active ? '<span class="text-xs text-green-500">activa</span>' : '<span class="text-xs text-gray-400">inactiva</span>'}
+                </div>
+                <p class="text-sm text-gray-600 mt-1 whitespace-pre-line">${k.response}</p>
+              </div>
+              <div class="flex gap-2 ml-2 shrink-0">
+                <button onclick="showEditKeyword('${id}', ${JSON.stringify(k).replace(/"/g,'&quot;')})" class="text-blue-400 hover:text-blue-600 text-sm">✏️</button>
+                <button onclick="deleteKeyword('${id}', ${k.id})" class="text-red-400 hover:text-red-600 text-sm">🗑️</button>
+              </div>
+            </div>
+          `).join('')}
         </div>
       </div>
 
-      <div class="bg-white rounded-lg p-4">
+      <div class="bg-white rounded-lg p-4 mb-8">
         <h4 class="font-semibold mb-3">⚙️ Configuración</h4>
         <div class="space-y-3">
           <div>
@@ -440,6 +434,8 @@ async function saveClient() {
 // ─── Products (modal-based) ──────────────────────────────────────
 let _editingProductId = null;
 let _editingProductClientId = null;
+let _editingKeywordId = null;
+let _editingKeywordClientId = null;
 
 function showAddProduct(clientId) {
   _editingProductId = null;
@@ -529,6 +525,72 @@ async function deleteProduct(clientId, productId) {
   if (!confirm('¿Eliminar este producto?')) return;
   showLoading('Eliminando...');
   await api(`/api/clients/${clientId}/products/${productId}`, { method: 'DELETE' });
+  loadClientDetail(clientId);
+  hideLoading();
+}
+
+// ─── Keywords ──────────────────────────────────────────────────
+function showAddKeyword(clientId) {
+  _editingKeywordId = null;
+  _editingKeywordClientId = clientId;
+  document.getElementById('keywordModalTitle').textContent = 'Nueva palabra clave';
+  document.getElementById('keywordModal-keyword').value = '';
+  document.getElementById('keywordModal-response').value = '';
+  document.getElementById('keywordModal-active').checked = true;
+  document.getElementById('keywordModal').classList.remove('hidden');
+  document.getElementById('keywordModal').classList.add('flex');
+}
+
+function showEditKeyword(clientId, kw) {
+  _editingKeywordId = kw.id;
+  _editingKeywordClientId = clientId;
+  document.getElementById('keywordModalTitle').textContent = 'Editar palabra clave';
+  document.getElementById('keywordModal-keyword').value = kw.keyword;
+  document.getElementById('keywordModal-response').value = kw.response;
+  document.getElementById('keywordModal-active').checked = kw.is_active === 1;
+  document.getElementById('keywordModal').classList.remove('hidden');
+  document.getElementById('keywordModal').classList.add('flex');
+}
+
+function closeKeywordModal() {
+  document.getElementById('keywordModal').classList.add('hidden');
+  document.getElementById('keywordModal').classList.remove('flex');
+  _editingKeywordId = null;
+  _editingKeywordClientId = null;
+}
+
+async function saveKeyword() {
+  const clientId = _editingKeywordClientId;
+  if (!clientId) return;
+  const keyword = document.getElementById('keywordModal-keyword').value.trim();
+  const response = document.getElementById('keywordModal-response').value.trim();
+  const is_active = document.getElementById('keywordModal-active').checked ? 1 : 0;
+  if (!keyword || !response) return alert('Completá todos los campos');
+  showLoading('Guardando...');
+  try {
+    if (_editingKeywordId) {
+      await api(`/api/clients/${clientId}/keywords/${_editingKeywordId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ keyword, response, is_active }),
+      });
+    } else {
+      await api(`/api/clients/${clientId}/keywords`, {
+        method: 'POST',
+        body: JSON.stringify({ keyword, response, is_active }),
+      });
+    }
+    closeKeywordModal();
+    loadClientDetail(clientId);
+  } catch (e) {
+    alert('Error al guardar: ' + (e.message || ''));
+  }
+  hideLoading();
+}
+
+async function deleteKeyword(clientId, kwId) {
+  if (!confirm('¿Eliminar esta palabra clave?')) return;
+  showLoading('Eliminando...');
+  await api(`/api/clients/${clientId}/keywords/${kwId}`, { method: 'DELETE' });
   loadClientDetail(clientId);
   hideLoading();
 }

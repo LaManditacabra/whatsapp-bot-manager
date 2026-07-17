@@ -269,6 +269,57 @@ app.delete('/api/clients/:id/products/:productId', authMiddleware, (req, res) =>
   res.json({ success: true });
 });
 
+// ─── Keywords / Auto-responder ──────────────────────────────────
+const checkClientAccess = (req, res) => {
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
+  if (!client) { res.status(404).json({ error: 'Client not found' }); return null; }
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) { res.status(403).json({ error: 'Forbidden' }); return null; }
+  return client;
+};
+
+app.get('/api/clients/:id/keywords', authMiddleware, (req, res) => {
+  const client = checkClientAccess(req, res);
+  if (!client) return;
+  const keywords = db.prepare('SELECT * FROM client_keywords WHERE client_id = ? ORDER BY id').all(req.params.id);
+  res.json(keywords);
+});
+
+app.post('/api/clients/:id/keywords', authMiddleware, (req, res) => {
+  const client = checkClientAccess(req, res);
+  if (!client) return;
+  const { keyword, response, is_active } = req.body;
+  if (!keyword || !response) return res.status(400).json({ error: 'Keyword y respuesta requeridos' });
+  try {
+    const result = db.prepare('INSERT INTO client_keywords (client_id, keyword, response, is_active) VALUES (?, ?, ?, ?)')
+      .run(req.params.id, keyword.toLowerCase().trim(), response, is_active ?? 1);
+    const kw = db.prepare('SELECT * FROM client_keywords WHERE id = ?').get(result.lastInsertRowid);
+    botManager.syncClientKeywords(req.params.id);
+    res.status(201).json(kw);
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Esa keyword ya existe' });
+    throw e;
+  }
+});
+
+app.put('/api/clients/:id/keywords/:kwId', authMiddleware, (req, res) => {
+  const client = checkClientAccess(req, res);
+  if (!client) return;
+  const { keyword, response, is_active } = req.body;
+  db.prepare('UPDATE client_keywords SET keyword = ?, response = ?, is_active = ? WHERE id = ? AND client_id = ?')
+    .run(keyword?.toLowerCase().trim(), response, is_active ?? 1, req.params.kwId, req.params.id);
+  const kw = db.prepare('SELECT * FROM client_keywords WHERE id = ?').get(req.params.kwId);
+  botManager.syncClientKeywords(req.params.id);
+  res.json(kw);
+});
+
+app.delete('/api/clients/:id/keywords/:kwId', authMiddleware, (req, res) => {
+  const client = checkClientAccess(req, res);
+  if (!client) return;
+  db.prepare('DELETE FROM client_keywords WHERE id = ? AND client_id = ?').run(req.params.kwId, req.params.id);
+  botManager.syncClientKeywords(req.params.id);
+  res.json({ success: true });
+});
+
 // ─── Settings ───────────────────────────────────────────────────
 app.get('/api/clients/:id/settings', authMiddleware, (req, res) => {
   const { id } = req.params;
@@ -346,7 +397,7 @@ app.post('/api/create-preference', authMiddleware, async (req, res) => {
     const base = `${protocol}://${host}`;
 
     const result = await createOrder({
-      title: `Plan ${plan.name} - WhatsApp Bot`,
+      title: `Plan ${plan.name} - BotAr`,
       price: plan.price,
       description: `${plan.bots} bot(s) - ${plan.name}`,
       externalReference: externalRef,

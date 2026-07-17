@@ -177,9 +177,50 @@ export class BotManager {
         txn(settings);
       }
 
+      // Sync keywords
+      workerDb.exec(`
+        CREATE TABLE IF NOT EXISTS keywords (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          keyword TEXT NOT NULL UNIQUE,
+          response TEXT NOT NULL,
+          media_url TEXT,
+          media_type TEXT,
+          is_active INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+      const keywords = this.db.prepare('SELECT * FROM client_keywords WHERE client_id = ?').all(clientId);
+      if (keywords.length > 0) {
+        const upsert = workerDb.prepare(
+          'INSERT OR REPLACE INTO keywords (keyword, response, is_active) VALUES (?, ?, ?)'
+        );
+        const txn = workerDb.transaction((items) => {
+          for (const k of items) upsert.run(k.keyword, k.response, k.is_active);
+        });
+        txn(keywords);
+      }
+
       workerDb.close();
     } catch (err) {
       console.error(`[BotManager] Error syncing client DB for ${clientId}:`, err.message);
+    }
+  }
+
+  syncClientKeywords(clientId) {
+    try {
+      const workerDb = new Database(join(DATA_DIR, 'clients', clientId, 'bot.db'));
+      workerDb.pragma('journal_mode = WAL');
+      workerDb.exec(`CREATE TABLE IF NOT EXISTS keywords (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL UNIQUE, response TEXT NOT NULL, media_url TEXT, media_type TEXT, is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))`);
+      const upsert = workerDb.prepare('INSERT OR REPLACE INTO keywords (keyword, response, is_active) VALUES (?, ?, ?)');
+      workerDb.transaction(() => {
+        workerDb.prepare('DELETE FROM keywords').run();
+        const keywords = this.db.prepare('SELECT * FROM client_keywords WHERE client_id = ?').all(clientId);
+        for (const k of keywords) upsert.run(k.keyword, k.response, k.is_active);
+      })();
+      workerDb.close();
+    } catch (err) {
+      console.error(`[BotManager] Error syncing keywords for ${clientId}:`, err.message);
     }
   }
 

@@ -1,5 +1,7 @@
 # AGENTS — Bitácora del Proyecto
 
+# BotAr — SaaS de gestión de bots WhatsApp
+
 ## Stack
 - Node.js ESM, Baileys v7, SQLite (better-sqlite3), Express, Electron, Docker Compose
 - Frontend: HTML+JS vanilla con Tailwind CDN
@@ -67,6 +69,8 @@
 | /api/clients/:id/stream | GET | auth | SSE (QR + status) |
 | /api/clients/:id/products | GET/POST | auth | CRUD productos |
 | /api/clients/:id/products/:pid | PUT/DELETE | auth | CRUD productos |
+| /api/clients/:id/keywords | GET/POST | auth | CRUD palabras clave |
+| /api/clients/:id/keywords/:kwId | PUT/DELETE | auth | CRUD palabras clave |
 | /api/clients/:id/settings | GET/PUT | auth | CRUD settings |
 | /api/settings | GET/PUT | admin | Settings globales |
 | /api/plans | GET | — | Planes disponibles |
@@ -186,6 +190,8 @@ Domingos: Cerrado
 - **BotManager**: el evento 'ready' ya no marca como 'online' prematuramente; espera el 'connected' real
 - **Importación bots legacy**: `6d15c37c` (El Palomo PrePizzas) y `952c1d80` re-insertados en la nueva dashboard.db y asignados al admin
 - **QR en docker**: agregada dependencia `qrcode` al dashboard/package.json
+- **Panel keywords**: sección de palabras clave en el detalle del bot (CRUD con modal)
+- **Sync keywords**: se sincronizan automáticamente al worker's bot.db al crear/editar/eliminar
 
 ## Próximos pasos
 1. ~~**Mercado Pago**~~ → **PayPal implementado** (Create Order + Capture + Webhook)

@@ -60,6 +60,16 @@ db.exec(`
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS client_keywords (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id TEXT NOT NULL,
+    keyword TEXT NOT NULL,
+    response TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    UNIQUE(client_id, keyword),
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS global_settings (
     key TEXT PRIMARY KEY,
     value TEXT

@@ -14,7 +14,7 @@ function createWindow(url) {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'WhatsApp Bot Manager',
+    title: 'BotAr',
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       nodeIntegration: false,
