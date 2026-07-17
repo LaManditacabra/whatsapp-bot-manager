@@ -95,9 +95,31 @@ function showView(name) {
   document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
   document.getElementById(`view-${name}`).classList.remove('hidden');
 
+  // Highlight active nav button
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('bg-white/10'));
+  document.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('bg-white/10', 'text-white'));
+  document.querySelectorAll('.platform-btn').forEach(b => b.classList.add('text-white/50'));
+  const active = document.querySelector(`[onclick*="'${name}'"]`);
+  if (active) {
+    active.classList.add('bg-white/10');
+    active.classList.remove('text-white/50');
+    active.classList.add('text-white');
+  }
+
   if (name === 'users') loadUsers();
   if (name === 'plans') loadPlans();
   if (name === 'settings') loadGlobalSettings();
+}
+
+function showPlatform(platform) {
+  showView('clients');
+}
+
+function togglePlatforms() {
+  const dropdown = document.getElementById('platformsDropdown');
+  const chevron = document.getElementById('chevron');
+  dropdown.classList.toggle('hidden');
+  chevron.classList.toggle('rotate-180');
 }
 
 // ─── Clients ────────────────────────────────────────────────────

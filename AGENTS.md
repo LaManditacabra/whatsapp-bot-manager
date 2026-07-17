@@ -192,6 +192,14 @@ Domingos: Cerrado
 - **QR en docker**: agregada dependencia `qrcode` al dashboard/package.json
 - **Panel keywords**: sección de palabras clave en el detalle del bot (CRUD con modal)
 - **Sync keywords**: se sincronizan automáticamente al worker's bot.db al crear/editar/eliminar
+- **Rebrand BotAr**: nombre actualizado en panel, landing, Electron, PayPal
+- **Rediseño UI**: sidebar gradient, cards con sombra, inputs redondeados, colores indigo
+- **Logo BotAr**: badge con inicial en sidebar y login
+- **Dropdown plataformas**: WhatsApp (activo), Instagram/TikTok/Facebook (próximamente) en sidebar
+
+### Sesión 17/07/2026
+- **Sidebar**: el texto "SaaS" cambió a "Plataformas" y ahora funciona como dropdown clickeable que despliega WhatsApp Bot, Instagram, TikTok, Facebook (sin sección "Plataformas" separada)
+- **Logo SVG**: creado logo personalizado (chat bubble con gradiente indigo) reemplazando la "B" genérica en sidebar, login, y landing page
 
 ## Próximos pasos
 1. ~~**Mercado Pago**~~ → **PayPal implementado** (Create Order + Capture + Webhook)
