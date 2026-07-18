@@ -32,15 +32,18 @@ async function register() {
   const email = document.getElementById('reg-email').value;
   const password = document.getElementById('reg-pass').value;
   if (!email || !password) return alert('Completá todos los campos');
+  showLoading('Creando cuenta...');
   try {
     const data = await api('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, name }),
     });
+    hideLoading();
     token = data.token;
     localStorage.setItem('token', token);
     enterApp(data);
   } catch (e) {
+    hideLoading();
     document.getElementById('reg-error').textContent = 'Error al registrarse';
     document.getElementById('reg-error').classList.remove('hidden');
   }
@@ -49,15 +52,18 @@ async function register() {
 async function login() {
   const email = document.getElementById('login-email').value;
   const password = document.getElementById('login-pass').value;
+  showLoading('Ingresando...');
   try {
     const data = await api('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
+    hideLoading();
     token = data.token;
     localStorage.setItem('token', token);
     enterApp(data);
   } catch {
+    hideLoading();
     document.getElementById('login-error').textContent = 'Email o contraseña incorrectos';
     document.getElementById('login-error').classList.remove('hidden');
   }
@@ -326,21 +332,23 @@ async function loadUsers() {
 async function updateUser(id, select) {
   const plan = select.value;
   const limits = { free: 1, premium: 5, unlimited: 999 };
+  showLoading('Actualizando plan...');
   await api(`/api/admin/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify({ plan, plan_bots_limit: limits[plan] }),
   });
+  hideLoading();
   loadUsers();
 }
 
 async function updateUserRole(id) {
   const newRole = confirm('Cambiar rol de este usuario?') ? 'admin' : 'user';
-  // Toggle
-  const user = document.querySelector(`#usersList option[value]`); // hacky
+  showLoading('Actualizando rol...');
   await api(`/api/admin/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify({ role: newRole }),
   });
+  hideLoading();
   loadUsers();
 }
 
@@ -365,17 +373,20 @@ async function loadPlans() {
 }
 
 async function upgradePlan(planId) {
+  showLoading('Preparando pago...');
   try {
     const data = await api('/api/create-preference', {
       method: 'POST',
       body: JSON.stringify({ plan_id: planId }),
     });
+    hideLoading();
     if (data.approve_link) {
       window.location.href = data.approve_link;
     } else {
       alert('Error: ' + (data.error || 'No se pudo crear el pago'));
     }
   } catch (e) {
+    hideLoading();
     alert('Error al conectar con PayPal');
   }
 }

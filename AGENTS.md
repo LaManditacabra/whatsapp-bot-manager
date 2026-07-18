@@ -204,9 +204,9 @@ Domingos: Cerrado
 ## Próximos pasos (para mañana 18/07)
 1. **DDNS + Cloudflare**: dominio gratis (no-ip.com) ocultando IP real con Cloudflare
 2. **Mejoras frontend**:
-   - Editar productos inline (no solo crear/eliminar)
-   - Editar nombre/teléfono del bot desde el panel
-   - Loading states en operaciones
+   - ~~Editar productos inline~~ (✅ ya implementado)
+   - ~~Editar nombre/teléfono del bot~~ (✅ ya implementado)
+   - ~~Loading states en operaciones~~ (✅ completado: register, login, updateUser, updateUserRole, upgradePlan)
 3. **Build Electron para distribución**: empaquetar app de escritorio
 4. **Sistema de tickets / soporte**: canal de comunicación con clientes
 5. **Estadísticas por bot**: mensajes enviados/recibidos, pedidos, etc.
