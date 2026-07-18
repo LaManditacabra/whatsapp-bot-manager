@@ -212,6 +212,8 @@ Domingos: Cerrado
   - Admin puede cerrar/reabrir tickets
 - **Bugfix tickets**: `datetime("now")` → `datetime('now')` (SQLite dobles comillas = identificador)
 - **Tickets en tiempo real**: polling cada 3s actualiza lista + detalle automáticamente
+- **Eliminar tickets**: admin puede eliminar tickets cerrados (botón rojo visible solo en cerrados)
+- **Estadísticas por bot**: API `/api/clients/:id/stats` que lee bot.db (mensajes totales, usuarios únicos, pedidos, comandos más usados, gráfico últimos 7 días). Vista en detalle del bot.
 - **DDNS no-ip**: configurado pero no funciona por CGNAT de Movistar
 - **ngrok**: alternativa probada para acceso externo sin abrir puertos
 
@@ -223,7 +225,7 @@ Domingos: Cerrado
    - ~~Loading states en operaciones~~ (✅ completado: register, login, updateUser, updateUserRole, upgradePlan)
 3. **Build Electron para distribución**: empaquetar app de escritorio
 4. ~~**Sistema de tickets / soporte**~~ (✅ implementado)
-5. **Estadísticas por bot**: mensajes enviados/recibidos, pedidos, etc.
+5. ~~**Estadísticas por bot**~~ (✅ implementado)
 
 ## Cómo correr
 ```bash

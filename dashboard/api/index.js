@@ -6,12 +6,15 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuid } from 'uuid';
 import qrcode from 'qrcode';
 
+import Database from 'better-sqlite3';
+import { existsSync } from 'fs';
 import db from './db.js';
 import { generateToken, authMiddleware, adminMiddleware } from './auth.js';
 import { BotManager } from './bot-manager.js';
 import { configurePayPal, isPayPalConfigured, createOrder, captureOrder } from './paypal.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = process.env.DATA_DIR || join(__dirname, '..', '..', 'data');
 const PORT = process.env.DASHBOARD_PORT || 3001;
 
 const app = express();
@@ -374,6 +377,38 @@ app.put('/api/settings', authMiddleware, adminMiddleware, (req, res) => {
   res.json({ success: true });
 });
 
+// ─── Stats ──────────────────────────────────────────────────────
+app.get('/api/clients/:id/stats', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const botDbPath = join(DATA_DIR, 'clients', id, 'bot.db');
+  if (!existsSync(botDbPath)) return res.json({ total_messages: 0, total_users: 0, total_orders: 0, commands: {}, last_week: [] });
+  try {
+    const botDb = new Database(botDbPath, { readonly: true });
+    const totalMessages = botDb.prepare('SELECT COUNT(*) as count FROM conversations').get().count;
+    const totalUsers = botDb.prepare('SELECT COUNT(DISTINCT user_id) as count FROM conversations').get().count;
+    const totalOrders = botDb.prepare("SELECT COUNT(*) as count FROM conversations WHERE message LIKE '%!pedido%'").get().count;
+    const commands = botDb.prepare(`
+      SELECT message, COUNT(*) as count FROM conversations
+      WHERE message LIKE '!%'
+      GROUP BY message ORDER BY count DESC LIMIT 10
+    `).all();
+    const lastWeek = botDb.prepare(`
+      SELECT date(created_at) as day, COUNT(*) as count
+      FROM conversations WHERE created_at >= datetime('now', '-7 days')
+      GROUP BY day ORDER BY day
+    `).all();
+    botDb.close();
+    res.json({ total_messages: totalMessages, total_users: totalUsers, total_orders: totalOrders, commands, last_week: lastWeek });
+  } catch (e) {
+    res.status(500).json({ error: 'Error reading stats' });
+  }
+});
+
 // ─── Tickets / Support ──────────────────────────────────────────
 app.get('/api/tickets', authMiddleware, (req, res) => {
   let tickets;
@@ -424,6 +459,15 @@ app.post('/api/tickets/:id/messages', authMiddleware, (req, res) => {
   db.prepare("UPDATE tickets SET updated_at = datetime('now') WHERE id = ?").run(id);
   const msg = db.prepare('SELECT tm.*, u.name as user_name FROM ticket_messages tm LEFT JOIN users u ON tm.user_id = u.id WHERE tm.id = ?').get(result.lastInsertRowid);
   res.status(201).json(msg);
+});
+
+app.delete('/api/tickets/:id', authMiddleware, adminMiddleware, (req, res) => {
+  const { id } = req.params;
+  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+  if (ticket.status !== 'closed') return res.status(400).json({ error: 'Solo se pueden eliminar tickets cerrados' });
+  db.prepare('DELETE FROM tickets WHERE id = ?').run(id);
+  res.json({ success: true });
 });
 
 app.put('/api/tickets/:id/status', authMiddleware, adminMiddleware, (req, res) => {

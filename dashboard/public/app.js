@@ -161,11 +161,12 @@ function selectClient(id) {
 }
 
 async function loadClientDetail(id) {
-  const [data, products, settings, keywords] = await Promise.all([
+  const [data, products, settings, keywords, stats] = await Promise.all([
     api(`/api/clients/${id}/status`),
     api(`/api/clients/${id}/products`),
     api(`/api/clients/${id}/settings`),
     api(`/api/clients/${id}/keywords`),
+    api(`/api/clients/${id}/stats`).catch(() => ({ total_messages: 0, total_users: 0, total_orders: 0, commands: [], last_week: [] })),
   ]);
 
   document.getElementById('clientDetail').innerHTML = `
@@ -249,6 +250,47 @@ async function loadClientDetail(id) {
             </div>
           `).join('')}
         </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-4 mb-4">
+        <h4 class="font-semibold mb-3">📊 Estadísticas</h4>
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <div class="bg-blue-50 rounded-xl p-3 text-center">
+            <p class="text-2xl font-bold text-blue-700">${stats.total_messages}</p>
+            <p class="text-xs text-blue-600 font-medium">Mensajes</p>
+          </div>
+          <div class="bg-green-50 rounded-xl p-3 text-center">
+            <p class="text-2xl font-bold text-green-700">${stats.total_users}</p>
+            <p class="text-xs text-green-600 font-medium">Usuarios</p>
+          </div>
+          <div class="bg-orange-50 rounded-xl p-3 text-center">
+            <p class="text-2xl font-bold text-orange-700">${stats.total_orders}</p>
+            <p class="text-xs text-orange-600 font-medium">Pedidos</p>
+          </div>
+        </div>
+        ${stats.last_week && stats.last_week.length > 0 ? `
+          <div class="mt-2">
+            <p class="text-sm font-medium text-gray-700 mb-1">Últimos 7 días</p>
+            <div class="flex items-end gap-1 h-16">
+              ${stats.last_week.map(d => {
+                const max = Math.max(...stats.last_week.map(x => x.count), 1);
+                const h = Math.round((d.count / max) * 60);
+                return `<div class="flex-1 flex flex-col items-center"><div class="w-full bg-blue-500 rounded-t" style="height:${h}px;min-height:4px"></div><span class="text-[9px] text-gray-400 mt-0.5">${d.day.slice(5)}</span></div>`;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+        ${stats.commands && stats.commands.length > 0 ? `
+          <div class="mt-2">
+            <p class="text-sm font-medium text-gray-700 mb-1">Comandos más usados</p>
+            ${stats.commands.slice(0, 5).map(c => `
+              <div class="flex justify-between text-sm py-0.5">
+                <span class="text-gray-600">${c.message}</span>
+                <span class="font-medium text-gray-800">${c.count}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
 
       <div class="bg-white rounded-lg p-4 mb-8">
@@ -751,7 +793,6 @@ async function loadTicketDetail(id) {
   `).join('');
 
   const statusBadge = ticket.status === 'open' ? '🟢 Abierto' : ticket.status === 'pending' ? '🟡 Pendiente' : '🔴 Cerrado';
-  const canClose = currentUser?.role === 'admin';
   const isClosed = ticket.status === 'closed';
 
   document.getElementById('ticketDetail').innerHTML = `
@@ -762,11 +803,12 @@ async function loadTicketDetail(id) {
           <p class="text-sm text-gray-500">${statusBadge}${currentUser?.role === 'admin' ? ` — ${ticket.user_name || ticket.user_email}` : ''}</p>
         </div>
         <div class="flex gap-2">
-          ${canClose ? `
+          ${currentUser?.role === 'admin' ? `
             <button onclick="toggleTicketStatus('${id}', '${isClosed ? 'open' : 'closed'}')" class="px-3 py-1.5 rounded-xl text-sm font-medium border ${isClosed ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-red-300 text-red-700 hover:bg-red-50'} transition-all">
               ${isClosed ? 'Reabrir' : 'Cerrar'}
             </button>
           ` : ''}
+          ${isClosed && currentUser?.role === 'admin' ? `<button onclick="deleteTicket('${id}')" class="px-3 py-1.5 rounded-xl text-sm font-medium border border-red-300 text-red-700 hover:bg-red-50 transition-all">🗑 Eliminar</button>` : ''}
           ${isClosed ? '' : `<button onclick="showReply('${id}')" class="px-3 py-1.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all">Responder</button>`}
         </div>
       </div>
@@ -829,6 +871,18 @@ async function toggleTicketStatus(id, status) {
 }
 
 // ─── Ticket real-time poll ──────────────────────────────────────
+async function deleteTicket(id) {
+  if (!confirm('¿Eliminar este ticket definitivamente?')) return;
+  showLoading('Eliminando...');
+  try {
+    await api(`/api/tickets/${id}`, { method: 'DELETE' });
+    currentTicketId = null;
+    stopTicketPoll();
+    showView('support');
+  } catch (e) { alert('Error: ' + (e.message || '')); }
+  hideLoading();
+}
+
 function startTicketPoll() {
   stopTicketPoll();
   ticketPollInterval = setInterval(async () => {
@@ -868,6 +922,7 @@ function startTicketPoll() {
               </div>
               <div class="flex gap-2">
                 ${currentUser?.role === 'admin' ? '<button onclick="toggleTicketStatus(\'' + currentTicketId + '\', \'' + (isClosed ? 'open' : 'closed') + '\')" class="px-3 py-1.5 rounded-xl text-sm font-medium border ' + (isClosed ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-red-300 text-red-700 hover:bg-red-50') + ' transition-all">' + (isClosed ? 'Reabrir' : 'Cerrar') + '</button>' : ''}
+                ${isClosed && currentUser?.role === 'admin' ? '<button onclick="deleteTicket(\'' + currentTicketId + '\')" class="px-3 py-1.5 rounded-xl text-sm font-medium border border-red-300 text-red-700 hover:bg-red-50 transition-all">🗑 Eliminar</button>' : ''}
                 ${isClosed ? '' : '<button onclick="showReply(\'' + currentTicketId + '\')" class="px-3 py-1.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all">Responder</button>'}
               </div>
             </div>
