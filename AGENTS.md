@@ -201,14 +201,28 @@ Domingos: Cerrado
 - **Sidebar**: el texto "SaaS" cambió a "Plataformas" y ahora funciona como dropdown clickeable que despliega WhatsApp Bot, Instagram, TikTok, Facebook (sin sección "Plataformas" separada)
 - **Logo SVG**: creado logo personalizado (chat bubble con gradiente indigo) reemplazando la "B" genérica en sidebar, login, y landing page
 
-## Próximos pasos (para mañana 18/07)
+### Sesión 18/07/2026
+- **Sidebar**: corregido updateUserRole (confirm con mensaje según rol actual, pasa el rol al onclick)
+- **Loading states**: agregados en register, login, updateUser, updateUserRole, upgradePlan
+- **api()**: ahora lanza error si la respuesta no es OK (antes devolvía JSON con error silenciosamente)
+- **Tickets / Soporte**: implementado completo
+  - DB: tablas `tickets` + `ticket_messages`
+  - API: CRUD completo con permisos (admin ve todos, user ve propios)
+  - Frontend: vista con sidebar de tickets + detalle con conversación, modal para crear/responder
+  - Admin puede cerrar/reabrir tickets
+- **Bugfix tickets**: `datetime("now")` → `datetime('now')` (SQLite dobles comillas = identificador)
+- **Tickets en tiempo real**: polling cada 3s actualiza lista + detalle automáticamente
+- **DDNS no-ip**: configurado pero no funciona por CGNAT de Movistar
+- **ngrok**: alternativa probada para acceso externo sin abrir puertos
+
+## Próximos pasos
 1. **DDNS + Cloudflare**: dominio gratis (no-ip.com) ocultando IP real con Cloudflare
 2. **Mejoras frontend**:
    - ~~Editar productos inline~~ (✅ ya implementado)
    - ~~Editar nombre/teléfono del bot~~ (✅ ya implementado)
    - ~~Loading states en operaciones~~ (✅ completado: register, login, updateUser, updateUserRole, upgradePlan)
 3. **Build Electron para distribución**: empaquetar app de escritorio
-4. ~~**Sistema de tickets / soporte**~~ (✅ implementado: tabla tickets + ticket_messages, API CRUD, vista en panel con sidebar, admin ve todos los tickets, usuarios ven los suyos, responder y cerrar/reabrir)
+4. ~~**Sistema de tickets / soporte**~~ (✅ implementado)
 5. **Estadísticas por bot**: mensajes enviados/recibidos, pedidos, etc.
 
 ## Cómo correr
