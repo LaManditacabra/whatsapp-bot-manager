@@ -374,6 +374,68 @@ app.put('/api/settings', authMiddleware, adminMiddleware, (req, res) => {
   res.json({ success: true });
 });
 
+// ─── Tickets / Support ──────────────────────────────────────────
+app.get('/api/tickets', authMiddleware, (req, res) => {
+  let tickets;
+  if (req.user.role === 'admin') {
+    tickets = db.prepare(`
+      SELECT t.*, u.email as user_email, u.name as user_name
+      FROM tickets t LEFT JOIN users u ON t.user_id = u.id
+      ORDER BY t.updated_at DESC
+    `).all();
+  } else {
+    tickets = db.prepare('SELECT * FROM tickets WHERE user_id = ? ORDER BY updated_at DESC').all(req.userId);
+  }
+  res.json(tickets);
+});
+
+app.post('/api/tickets', authMiddleware, (req, res) => {
+  const { subject, message } = req.body;
+  if (!subject || !message) return res.status(400).json({ error: 'Asunto y mensaje requeridos' });
+  const id = uuid();
+  db.prepare('INSERT INTO tickets (id, user_id, subject) VALUES (?, ?, ?)').run(id, req.userId, subject);
+  db.prepare('INSERT INTO ticket_messages (ticket_id, user_id, message) VALUES (?, ?, ?)').run(id, req.userId, message);
+  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
+  res.status(201).json(ticket);
+});
+
+app.get('/api/tickets/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+  if (req.user.role !== 'admin' && ticket.user_id !== req.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const messages = db.prepare('SELECT tm.*, u.name as user_name, u.email as user_email FROM ticket_messages tm LEFT JOIN users u ON tm.user_id = u.id WHERE tm.ticket_id = ? ORDER BY tm.created_at ASC').all(id);
+  res.json({ ...ticket, messages });
+});
+
+app.post('/api/tickets/:id/messages', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+  if (req.user.role !== 'admin' && ticket.user_id !== req.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: 'Mensaje requerido' });
+  const is_admin = req.user.role === 'admin' ? 1 : 0;
+  const result = db.prepare('INSERT INTO ticket_messages (ticket_id, user_id, message, is_admin) VALUES (?, ?, ?, ?)').run(id, req.userId, message, is_admin);
+  db.prepare('UPDATE tickets SET updated_at = datetime("now") WHERE id = ?').run(id);
+  const msg = db.prepare('SELECT tm.*, u.name as user_name FROM ticket_messages tm LEFT JOIN users u ON tm.user_id = u.id WHERE tm.id = ?').get(result.lastInsertRowid);
+  res.status(201).json(msg);
+});
+
+app.put('/api/tickets/:id/status', authMiddleware, adminMiddleware, (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!['open', 'pending', 'closed'].includes(status)) {
+    return res.status(400).json({ error: 'Status inválido' });
+  }
+  db.prepare('UPDATE tickets SET status = ?, updated_at = datetime("now") WHERE id = ?').run(status, id);
+  res.json({ success: true });
+});
+
 // ─── Plans / PayPal ─────────────────────────────────────────────
 app.get('/api/plans', (req, res) => {
   res.json([

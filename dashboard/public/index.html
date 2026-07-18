@@ -69,6 +69,9 @@ tailwind.config = {
         <button onclick="showView('plans')" class="nav-btn w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 flex items-center gap-3 text-sm font-medium">
           <span class="text-lg">💎</span> Planes
         </button>
+        <button onclick="showView('support')" class="nav-btn w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 flex items-center gap-3 text-sm font-medium">
+          <span class="text-lg">🎫</span> Soporte
+        </button>
       </nav>
       <div class="p-4 border-t border-white/10 text-sm">
         <p class="text-white/50" id="planLabel"></p>
@@ -147,6 +150,29 @@ tailwind.config = {
       <div id="view-plans" class="flex-1 overflow-y-auto hidden p-6">
         <h2 class="text-xl font-semibold text-gray-800 mb-5">Planes</h2>
         <div id="plansList" class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl"></div>
+      </div>
+
+      <!-- Support View -->
+      <div id="view-support" class="flex-1 flex flex-col min-h-0 hidden">
+        <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
+          <h2 class="text-lg font-semibold text-gray-800">Soporte</h2>
+          <button onclick="showNewTicket()" class="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 text-sm font-medium transition-all shadow-sm hover:shadow-md flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Nuevo Ticket
+          </button>
+        </div>
+        <div class="flex-1 flex overflow-hidden min-h-0">
+          <div class="w-80 border-r border-gray-200 bg-white overflow-y-auto min-h-0">
+            <div id="ticketList" class="p-3 space-y-1"></div>
+          </div>
+          <div id="ticketDetail" class="flex-1 p-6 overflow-y-auto min-h-0">
+            <div class="flex flex-col items-center justify-center h-full text-gray-400">
+              <div class="text-6xl mb-4 opacity-50">🎫</div>
+              <p class="text-lg font-medium">Seleccioná un ticket</p>
+              <p class="text-sm">Hacé clic en un ticket para ver la conversación</p>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -236,6 +262,35 @@ tailwind.config = {
     <div class="flex justify-end gap-3 mt-6">
       <button onclick="closeKeywordModal()" class="px-4 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 text-sm font-medium transition-all">Cancelar</button>
       <button onclick="saveKeyword()" class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm font-medium transition-all shadow-sm">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ticket Modal -->
+<div id="ticketModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-96 border border-gray-100">
+    <h3 class="text-lg font-semibold mb-4">Nuevo Ticket</h3>
+    <div class="space-y-3">
+      <input id="ticketModal-subject" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="Asunto">
+      <textarea id="ticketModal-message" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" rows="4" placeholder="Describí tu consulta..."></textarea>
+    </div>
+    <div class="flex justify-end gap-3 mt-6">
+      <button onclick="closeTicketModal()" class="px-4 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 text-sm font-medium transition-all">Cancelar</button>
+      <button onclick="saveTicket()" class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm font-medium transition-all shadow-sm">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reply Modal -->
+<div id="replyModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-96 border border-gray-100">
+    <h3 class="text-lg font-semibold mb-4">Responder ticket</h3>
+    <div class="space-y-3">
+      <textarea id="replyModal-message" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" rows="4" placeholder="Escribí tu respuesta..."></textarea>
+    </div>
+    <div class="flex justify-end gap-3 mt-6">
+      <button onclick="closeReplyModal()" class="px-4 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 text-sm font-medium transition-all">Cancelar</button>
+      <button onclick="sendReply()" class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm font-medium transition-all shadow-sm" id="replyModalBtn">Enviar</button>
     </div>
   </div>
 </div>

@@ -208,7 +208,7 @@ Domingos: Cerrado
    - ~~Editar nombre/teléfono del bot~~ (✅ ya implementado)
    - ~~Loading states en operaciones~~ (✅ completado: register, login, updateUser, updateUserRole, upgradePlan)
 3. **Build Electron para distribución**: empaquetar app de escritorio
-4. **Sistema de tickets / soporte**: canal de comunicación con clientes
+4. ~~**Sistema de tickets / soporte**~~ (✅ implementado: tabla tickets + ticket_messages, API CRUD, vista en panel con sidebar, admin ve todos los tickets, usuarios ven los suyos, responder y cerrar/reabrir)
 5. **Estadísticas por bot**: mensajes enviados/recibidos, pedidos, etc.
 
 ## Cómo correr

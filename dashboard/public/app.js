@@ -115,6 +115,7 @@ function showView(name) {
   if (name === 'users') loadUsers();
   if (name === 'plans') loadPlans();
   if (name === 'settings') loadGlobalSettings();
+  if (name === 'support') loadTickets();
 }
 
 function showPlatform(platform) {
@@ -321,7 +322,7 @@ async function loadUsers() {
           <option value="premium" ${u.plan === 'premium' ? 'selected' : ''}>Premium</option>
           <option value="unlimited" ${u.plan === 'unlimited' ? 'selected' : ''}>Ilimitado</option>
         </select>
-        <button onclick="updateUserRole('${u.id}')" class="text-blue-600 hover:underline">
+        <button onclick="updateUserRole('${u.id}', '${u.role}')" class="text-blue-600 hover:underline">
           ${u.role === 'admin' ? '🔴 Quitar admin' : '⭐ Hacer admin'}
         </button>
       </div>
@@ -341,8 +342,10 @@ async function updateUser(id, select) {
   loadUsers();
 }
 
-async function updateUserRole(id) {
-  const newRole = confirm('Cambiar rol de este usuario?') ? 'admin' : 'user';
+async function updateUserRole(id, currentRole) {
+  const newRole = currentRole === 'admin' ? 'user' : 'admin';
+  const msg = currentRole === 'admin' ? '¿Quitar admin a este usuario?' : '¿Hacer admin a este usuario?';
+  if (!confirm(msg)) return;
   showLoading('Actualizando rol...');
   await api(`/api/admin/users/${id}`, {
     method: 'PUT',
@@ -677,6 +680,127 @@ async function saveGlobalSettings() {
   });
   hideLoading();
   alert('Configuración global guardada');
+}
+
+// ─── Tickets / Support ──────────────────────────────────────────
+let currentTicketId = null;
+
+function showNewTicket() {
+  document.getElementById('ticketModal-subject').value = '';
+  document.getElementById('ticketModal-message').value = '';
+  document.getElementById('ticketModal').classList.remove('hidden');
+  document.getElementById('ticketModal').classList.add('flex');
+}
+
+function closeTicketModal() {
+  document.getElementById('ticketModal').classList.add('hidden');
+  document.getElementById('ticketModal').classList.remove('flex');
+}
+
+async function saveTicket() {
+  const subject = document.getElementById('ticketModal-subject').value;
+  const message = document.getElementById('ticketModal-message').value;
+  if (!subject || !message) return alert('Completá todos los campos');
+  showLoading('Creando ticket...');
+  await api('/api/tickets', {
+    method: 'POST',
+    body: JSON.stringify({ subject, message }),
+  });
+  hideLoading();
+  closeTicketModal();
+  loadTickets();
+}
+
+async function loadTickets() {
+  const tickets = await api('/api/tickets');
+  document.getElementById('ticketList').innerHTML = tickets.map(t => `
+    <div onclick="loadTicketDetail('${t.id}')" class="p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition-all ${currentTicketId === t.id ? 'bg-blue-50 border border-blue-200' : 'border border-transparent'}">
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-sm font-medium truncate">${t.subject}</p>
+        <span class="text-[10px] font-medium uppercase px-1.5 py-0.5 rounded-full ${t.status === 'open' ? 'bg-green-100 text-green-700' : t.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}">${t.status}</span>
+      </div>
+      ${currentUser?.role === 'admin' ? `<p class="text-xs text-gray-400 mt-1">${t.user_name || t.user_email}</p>` : ''}
+      <p class="text-xs text-gray-400 mt-0.5">${new Date(t.created_at).toLocaleDateString()}</p>
+    </div>
+  `).join('');
+  if (currentTicketId && document.querySelector(`[onclick*='${currentTicketId}']`)) {
+    loadTicketDetail(currentTicketId);
+  }
+}
+
+async function loadTicketDetail(id) {
+  currentTicketId = id;
+  const ticket = await api(`/api/tickets/${id}`);
+  const msgs = ticket.messages.map(m => `
+    <div class="flex ${m.is_admin ? 'justify-start' : 'justify-end'} mb-3">
+      <div class="max-w-[75%] ${m.is_admin ? 'bg-gray-100 rounded-2xl rounded-bl-sm' : 'bg-blue-600 text-white rounded-2xl rounded-br-sm'} px-4 py-2.5">
+        <p class="text-xs font-medium opacity-70 mb-0.5">${m.is_admin ? 'Soporte' : 'Tú'}</p>
+        <p class="text-sm">${m.message}</p>
+        <p class="text-[10px] opacity-50 mt-1">${new Date(m.created_at).toLocaleString()}</p>
+      </div>
+    </div>
+  `).join('');
+
+  const statusBadge = ticket.status === 'open' ? '🟢 Abierto' : ticket.status === 'pending' ? '🟡 Pendiente' : '🔴 Cerrado';
+  const canClose = currentUser?.role === 'admin';
+  const isClosed = ticket.status === 'closed';
+
+  document.getElementById('ticketDetail').innerHTML = `
+    <div class="max-w-3xl mx-auto">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-semibold">${ticket.subject}</h3>
+          <p class="text-sm text-gray-500">${statusBadge}${currentUser?.role === 'admin' ? ` — ${ticket.user_name || ticket.user_email}` : ''}</p>
+        </div>
+        <div class="flex gap-2">
+          ${canClose ? `
+            <button onclick="toggleTicketStatus('${id}', '${isClosed ? 'open' : 'closed'}')" class="px-3 py-1.5 rounded-xl text-sm font-medium border ${isClosed ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-red-300 text-red-700 hover:bg-red-50'} transition-all">
+              ${isClosed ? 'Reabrir' : 'Cerrar'}
+            </button>
+          ` : ''}
+          ${isClosed ? '' : `<button onclick="showReply('${id}')" class="px-3 py-1.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all">Responder</button>`}
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[300px] flex flex-col">
+        <div class="flex-1 overflow-y-auto mb-4">${msgs}</div>
+      </div>
+    </div>
+  `;
+}
+
+function showReply(ticketId) {
+  currentTicketId = ticketId;
+  document.getElementById('replyModal-message').value = '';
+  document.getElementById('replyModal').classList.remove('hidden');
+  document.getElementById('replyModal').classList.add('flex');
+}
+
+function closeReplyModal() {
+  document.getElementById('replyModal').classList.add('hidden');
+  document.getElementById('replyModal').classList.remove('flex');
+}
+
+async function sendReply() {
+  const message = document.getElementById('replyModal-message').value;
+  if (!message) return alert('Escribí un mensaje');
+  showLoading('Enviando...');
+  await api(`/api/tickets/${currentTicketId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+  hideLoading();
+  closeReplyModal();
+  loadTickets();
+}
+
+async function toggleTicketStatus(id, status) {
+  showLoading('Actualizando...');
+  await api(`/api/tickets/${id}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  });
+  hideLoading();
+  loadTickets();
 }
 
 // ─── Init ───────────────────────────────────────────────────────
