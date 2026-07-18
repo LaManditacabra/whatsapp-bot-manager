@@ -9,7 +9,9 @@ async function api(path, options = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(API + path, { ...options, headers });
   if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Error del servidor');
+  return data;
 }
 
 // ─── Auth ───────────────────────────────────────────────────────
@@ -115,7 +117,8 @@ function showView(name) {
   if (name === 'users') loadUsers();
   if (name === 'plans') loadPlans();
   if (name === 'settings') loadGlobalSettings();
-  if (name === 'support') loadTickets();
+  if (name === 'support') { loadTickets(); startTicketPoll(); }
+  else stopTicketPoll();
 }
 
 function showPlatform(platform) {
@@ -684,6 +687,7 @@ async function saveGlobalSettings() {
 
 // ─── Tickets / Support ──────────────────────────────────────────
 let currentTicketId = null;
+let ticketPollInterval = null;
 
 function showNewTicket() {
   document.getElementById('ticketModal-subject').value = '';
@@ -702,13 +706,15 @@ async function saveTicket() {
   const message = document.getElementById('ticketModal-message').value;
   if (!subject || !message) return alert('Completá todos los campos');
   showLoading('Creando ticket...');
-  await api('/api/tickets', {
-    method: 'POST',
-    body: JSON.stringify({ subject, message }),
-  });
+  try {
+    await api('/api/tickets', {
+      method: 'POST',
+      body: JSON.stringify({ subject, message }),
+    });
+    closeTicketModal();
+    loadTickets();
+  } catch (e) { alert('Error al crear ticket'); }
   hideLoading();
-  closeTicketModal();
-  loadTickets();
 }
 
 async function loadTickets() {
@@ -730,7 +736,10 @@ async function loadTickets() {
 
 async function loadTicketDetail(id) {
   currentTicketId = id;
-  const ticket = await api(`/api/tickets/${id}`);
+  let ticket;
+  try {
+    ticket = await api(`/api/tickets/${id}`);
+  } catch (e) { return void alert('Error al cargar ticket'); }
   const msgs = ticket.messages.map(m => `
     <div class="flex ${m.is_admin ? 'justify-start' : 'justify-end'} mb-3">
       <div class="max-w-[75%] ${m.is_admin ? 'bg-gray-100 rounded-2xl rounded-bl-sm' : 'bg-blue-600 text-white rounded-2xl rounded-br-sm'} px-4 py-2.5">
@@ -783,24 +792,100 @@ function closeReplyModal() {
 async function sendReply() {
   const message = document.getElementById('replyModal-message').value;
   if (!message) return alert('Escribí un mensaje');
+  if (!currentTicketId) return alert('Error: ticket no seleccionado');
   showLoading('Enviando...');
-  await api(`/api/tickets/${currentTicketId}/messages`, {
-    method: 'POST',
-    body: JSON.stringify({ message }),
-  });
+  try {
+    if (!currentTicketId || currentTicketId.length < 5) {
+      hideLoading();
+      return alert('Error: ID de ticket inválido (' + JSON.stringify(currentTicketId) + ')');
+    }
+    const url = `/api/tickets/${encodeURIComponent(currentTicketId)}/messages`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ message }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      hideLoading();
+      return alert('Error ' + res.status + ': ' + (data.error || 'desconocido'));
+    }
+    closeReplyModal();
+    loadTickets();
+  } catch (e) { alert('Error de red: ' + e.message); }
   hideLoading();
-  closeReplyModal();
-  loadTickets();
 }
 
 async function toggleTicketStatus(id, status) {
   showLoading('Actualizando...');
-  await api(`/api/tickets/${id}/status`, {
-    method: 'PUT',
-    body: JSON.stringify({ status }),
-  });
+  try {
+    await api(`/api/tickets/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+    loadTickets();
+  } catch (e) { alert('Error al actualizar ticket'); }
   hideLoading();
-  loadTickets();
+}
+
+// ─── Ticket real-time poll ──────────────────────────────────────
+function startTicketPoll() {
+  stopTicketPoll();
+  ticketPollInterval = setInterval(async () => {
+    if (document.getElementById('view-support')?.classList.contains('hidden')) return;
+    try {
+      const tickets = await api('/api/tickets');
+      const listHtml = tickets.map(t => `
+        <div onclick="loadTicketDetail('${t.id}')" class="p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition-all ${currentTicketId === t.id ? 'bg-blue-50 border border-blue-200' : 'border border-transparent'}">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm font-medium truncate">${t.subject}</p>
+            <span class="text-[10px] font-medium uppercase px-1.5 py-0.5 rounded-full ${t.status === 'open' ? 'bg-green-100 text-green-700' : t.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}">${t.status}</span>
+          </div>
+          ${currentUser?.role === 'admin' ? `<p class="text-xs text-gray-400 mt-1">${t.user_name || t.user_email}</p>` : ''}
+          <p class="text-xs text-gray-400 mt-0.5">${new Date(t.created_at).toLocaleDateString()}</p>
+        </div>
+      `).join('');
+      document.getElementById('ticketList').innerHTML = listHtml;
+      if (currentTicketId) {
+        const ticket = await api(`/api/tickets/${currentTicketId}`);
+        const msgs = ticket.messages.map(m => `
+          <div class="flex ${m.is_admin ? 'justify-start' : 'justify-end'} mb-3">
+            <div class="max-w-[75%] ${m.is_admin ? 'bg-gray-100 rounded-2xl rounded-bl-sm' : 'bg-blue-600 text-white rounded-2xl rounded-br-sm'} px-4 py-2.5">
+              <p class="text-xs font-medium opacity-70 mb-0.5">${m.is_admin ? 'Soporte' : 'Tú'}</p>
+              <p class="text-sm">${m.message}</p>
+              <p class="text-[10px] opacity-50 mt-1">${new Date(m.created_at).toLocaleString()}</p>
+            </div>
+          </div>
+        `).join('');
+        const statusBadge = ticket.status === 'open' ? '🟢 Abierto' : ticket.status === 'pending' ? '🟡 Pendiente' : '🔴 Cerrado';
+        const isClosed = ticket.status === 'closed';
+        document.getElementById('ticketDetail').innerHTML = `
+          <div class="max-w-3xl mx-auto">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-lg font-semibold">${ticket.subject}</h3>
+                <p class="text-sm text-gray-500">${statusBadge}${currentUser?.role === 'admin' ? ' — ' + (ticket.user_name || ticket.user_email) : ''}</p>
+              </div>
+              <div class="flex gap-2">
+                ${currentUser?.role === 'admin' ? '<button onclick="toggleTicketStatus(\'' + currentTicketId + '\', \'' + (isClosed ? 'open' : 'closed') + '\')" class="px-3 py-1.5 rounded-xl text-sm font-medium border ' + (isClosed ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-red-300 text-red-700 hover:bg-red-50') + ' transition-all">' + (isClosed ? 'Reabrir' : 'Cerrar') + '</button>' : ''}
+                ${isClosed ? '' : '<button onclick="showReply(\'' + currentTicketId + '\')" class="px-3 py-1.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all">Responder</button>'}
+              </div>
+            </div>
+            <div class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[300px] flex flex-col">
+              <div class="flex-1 overflow-y-auto mb-4">${msgs}</div>
+            </div>
+          </div>
+        `;
+      }
+    } catch (_e) { /* poll error */ }
+  }, 3000);
+}
+
+function stopTicketPoll() {
+  if (ticketPollInterval) {
+    clearInterval(ticketPollInterval);
+    ticketPollInterval = null;
+  }
 }
 
 // ─── Init ───────────────────────────────────────────────────────

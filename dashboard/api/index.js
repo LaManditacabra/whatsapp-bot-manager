@@ -421,7 +421,7 @@ app.post('/api/tickets/:id/messages', authMiddleware, (req, res) => {
   if (!message) return res.status(400).json({ error: 'Mensaje requerido' });
   const is_admin = req.user.role === 'admin' ? 1 : 0;
   const result = db.prepare('INSERT INTO ticket_messages (ticket_id, user_id, message, is_admin) VALUES (?, ?, ?, ?)').run(id, req.userId, message, is_admin);
-  db.prepare('UPDATE tickets SET updated_at = datetime("now") WHERE id = ?').run(id);
+  db.prepare("UPDATE tickets SET updated_at = datetime('now') WHERE id = ?").run(id);
   const msg = db.prepare('SELECT tm.*, u.name as user_name FROM ticket_messages tm LEFT JOIN users u ON tm.user_id = u.id WHERE tm.id = ?').get(result.lastInsertRowid);
   res.status(201).json(msg);
 });
@@ -432,7 +432,7 @@ app.put('/api/tickets/:id/status', authMiddleware, adminMiddleware, (req, res) =
   if (!['open', 'pending', 'closed'].includes(status)) {
     return res.status(400).json({ error: 'Status inválido' });
   }
-  db.prepare('UPDATE tickets SET status = ?, updated_at = datetime("now") WHERE id = ?').run(status, id);
+  db.prepare("UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, id);
   res.json({ success: true });
 });
 
