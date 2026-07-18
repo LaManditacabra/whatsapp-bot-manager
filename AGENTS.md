@@ -213,7 +213,8 @@ Domingos: Cerrado
 - **Bugfix tickets**: `datetime("now")` → `datetime('now')` (SQLite dobles comillas = identificador)
 - **Tickets en tiempo real**: polling cada 3s actualiza lista + detalle automáticamente
 - **Eliminar tickets**: admin puede eliminar tickets cerrados (botón rojo visible solo en cerrados)
-- **Estadísticas por bot**: API `/api/clients/:id/stats` que lee bot.db (mensajes totales, usuarios únicos, pedidos, comandos más usados, gráfico últimos 7 días). Vista en detalle del bot.
+- **Estadísticas por bot**: API `/api/clients/:id/stats` que lee bot.db (mensajes totales, usuarios únicos, pedidos, comandos más usados, gráfico últimos 7 días). Vista en detalle del bot en cards con gradientes, tooltips y barras de progreso.
+- **Sección Estadísticas**: vista independiente en el sidebar que muestra stats de todos los bots en cards con mini-gráficos y barras.
 - **DDNS no-ip**: configurado pero no funciona por CGNAT de Movistar
 - **ngrok**: alternativa probada para acceso externo sin abrir puertos
 

@@ -119,6 +119,7 @@ function showView(name) {
   if (name === 'settings') loadGlobalSettings();
   if (name === 'support') { loadTickets(); startTicketPoll(); }
   else stopTicketPoll();
+  if (name === 'stats') loadStatsView();
 }
 
 function showPlatform(platform) {
@@ -252,43 +253,72 @@ async function loadClientDetail(id) {
         </div>
       </div>
 
-      <div class="bg-white rounded-lg p-4 mb-4">
-        <h4 class="font-semibold mb-3">📊 Estadísticas</h4>
-        <div class="grid grid-cols-3 gap-3 mb-3">
-          <div class="bg-blue-50 rounded-xl p-3 text-center">
-            <p class="text-2xl font-bold text-blue-700">${stats.total_messages}</p>
-            <p class="text-xs text-blue-600 font-medium">Mensajes</p>
+      <div class="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="font-semibold text-gray-800">📊 Estadísticas</h4>
+          <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">Tiempo real</span>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-3 text-white shadow-sm">
+            <p class="text-lg opacity-80 mb-1">💬</p>
+            <p class="text-2xl font-bold">${stats.total_messages}</p>
+            <p class="text-xs opacity-75 font-medium">Mensajes</p>
           </div>
-          <div class="bg-green-50 rounded-xl p-3 text-center">
-            <p class="text-2xl font-bold text-green-700">${stats.total_users}</p>
-            <p class="text-xs text-green-600 font-medium">Usuarios</p>
+          <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-3 text-white shadow-sm">
+            <p class="text-lg opacity-80 mb-1">👥</p>
+            <p class="text-2xl font-bold">${stats.total_users}</p>
+            <p class="text-xs opacity-75 font-medium">Usuarios</p>
           </div>
-          <div class="bg-orange-50 rounded-xl p-3 text-center">
-            <p class="text-2xl font-bold text-orange-700">${stats.total_orders}</p>
-            <p class="text-xs text-orange-600 font-medium">Pedidos</p>
+          <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-3 text-white shadow-sm">
+            <p class="text-lg opacity-80 mb-1">🛵</p>
+            <p class="text-2xl font-bold">${stats.total_orders}</p>
+            <p class="text-xs opacity-75 font-medium">Pedidos</p>
           </div>
         </div>
         ${stats.last_week && stats.last_week.length > 0 ? `
-          <div class="mt-2">
-            <p class="text-sm font-medium text-gray-700 mb-1">Últimos 7 días</p>
-            <div class="flex items-end gap-1 h-16">
-              ${stats.last_week.map(d => {
+          <div class="mt-4 pt-4 border-t border-gray-100">
+            <p class="text-sm font-medium text-gray-700 mb-3">📈 Últimos 7 días</p>
+            <div class="flex items-end gap-1.5 h-24">
+              ${(() => {
                 const max = Math.max(...stats.last_week.map(x => x.count), 1);
-                const h = Math.round((d.count / max) * 60);
-                return `<div class="flex-1 flex flex-col items-center"><div class="w-full bg-blue-500 rounded-t" style="height:${h}px;min-height:4px"></div><span class="text-[9px] text-gray-400 mt-0.5">${d.day.slice(5)}</span></div>`;
-              }).join('')}
+                return stats.last_week.map(d => {
+                  const h = Math.max(Math.round((d.count / max) * 80), 4);
+                  const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+                  const date = new Date(d.day);
+                  const label = days[date.getDay()];
+                  return `
+                    <div class="flex-1 flex flex-col items-center group relative">
+                      <div class="absolute -top-6 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap">${d.count} mensajes</div>
+                      <div class="w-full bg-gradient-to-t from-blue-400 to-blue-500 rounded-t-lg transition-all duration-300 hover:from-blue-500 hover:to-blue-600 cursor-pointer shadow-sm" style="height:${h}px;min-height:4px"></div>
+                      <span class="text-[10px] text-gray-400 mt-1 font-medium">${label}</span>
+                    </div>`;
+                }).join('');
+              })()}
             </div>
           </div>
-        ` : ''}
+        ` : `<div class="mt-4 pt-4 border-t border-gray-100 text-center text-sm text-gray-400">📈 Sin datos aún</div>`}
         ${stats.commands && stats.commands.length > 0 ? `
-          <div class="mt-2">
-            <p class="text-sm font-medium text-gray-700 mb-1">Comandos más usados</p>
-            ${stats.commands.slice(0, 5).map(c => `
-              <div class="flex justify-between text-sm py-0.5">
-                <span class="text-gray-600">${c.message}</span>
-                <span class="font-medium text-gray-800">${c.count}</span>
-              </div>
-            `).join('')}
+          <div class="mt-4 pt-4 border-t border-gray-100">
+            <p class="text-sm font-medium text-gray-700 mb-3">🏆 Comandos más usados</p>
+            <div class="space-y-2">
+              ${(() => {
+                const maxCmd = Math.max(...stats.commands.slice(0, 5).map(c => c.count), 1);
+                return stats.commands.slice(0, 5).map(c => {
+                  const pct = Math.round((c.count / maxCmd) * 100);
+                  const emoji = c.message.includes('!pedido') ? '🛵' : c.message.includes('!productos') || c.message.includes('!menu') ? '🍕' : c.message.includes('!horario') ? '🕐' : c.message.includes('!contacto') ? '📞' : c.message.includes('!help') ? '❓' : '💬';
+                  return `
+                    <div>
+                      <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-700 font-medium">${emoji} ${c.message}</span>
+                        <span class="text-gray-500 font-semibold">${c.count}</span>
+                      </div>
+                      <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-500" style="width:${pct}%"></div>
+                      </div>
+                    </div>`;
+                }).join('');
+              })()}
+            </div>
           </div>
         ` : ''}
       </div>
@@ -449,6 +479,69 @@ function showLoading(text = 'Cargando...') {
 function hideLoading() {
   document.getElementById('loadingOverlay').classList.add('hidden');
   document.getElementById('loadingOverlay').classList.remove('flex');
+}
+
+// ─── Stats View ─────────────────────────────────────────────────
+async function loadStatsView() {
+  showLoading('Cargando estadísticas...');
+  try {
+    const clients = await api('/api/clients');
+    const rows = await Promise.all(clients.map(async c => {
+      try {
+        const s = await api(`/api/clients/${c.id}/stats`);
+        return { ...c, stats: s };
+      } catch { return { ...c, stats: null }; }
+    }));
+    document.getElementById('statsGrid').innerHTML = rows.map(c => {
+      const s = c.stats;
+      return `
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-all">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="font-semibold text-gray-800">${c.business_name || c.name}</h3>
+              <p class="text-xs text-gray-400">${c.phone || ''}</p>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-xs font-medium ${c.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${c.status === 'online' ? '🟢' : '⚫'} ${c.status}</span>
+          </div>
+          ${s ? `
+            <div class="grid grid-cols-3 gap-2 mb-3">
+              <div class="bg-blue-50 rounded-xl p-2.5 text-center">
+                <p class="text-lg font-bold text-blue-700">${s.total_messages}</p>
+                <p class="text-[10px] text-blue-600 font-medium">Mensajes</p>
+              </div>
+              <div class="bg-emerald-50 rounded-xl p-2.5 text-center">
+                <p class="text-lg font-bold text-emerald-700">${s.total_users}</p>
+                <p class="text-[10px] text-emerald-600 font-medium">Usuarios</p>
+              </div>
+              <div class="bg-orange-50 rounded-xl p-2.5 text-center">
+                <p class="text-lg font-bold text-orange-700">${s.total_orders}</p>
+                <p class="text-[10px] text-orange-600 font-medium">Pedidos</p>
+              </div>
+            </div>
+            ${s.last_week && s.last_week.length > 0 ? `
+              <div class="flex items-end gap-1 h-12 mb-2">
+                ${(() => {
+                  const max = Math.max(...s.last_week.map(x => x.count), 1);
+                  return s.last_week.map(d => {
+                    const h = Math.max(Math.round((d.count / max) * 36), 3);
+                    return `<div class="flex-1 flex flex-col items-center"><div class="w-full bg-blue-400 rounded-t-sm transition-all" style="height:${h}px"></div><span class="text-[8px] text-gray-400 mt-0.5">${d.day.slice(5)}</span></div>`;
+                  }).join('');
+                })()}
+              </div>
+            ` : '<p class="text-xs text-gray-400 text-center py-2">Sin datos aún</p>'}
+            ${s.commands && s.commands.length > 0 ? `
+              <div class="space-y-1.5">
+                ${s.commands.slice(0, 3).map(cmd => {
+                  const maxC = Math.max(...s.commands.slice(0, 3).map(x => x.count), 1);
+                  return `<div class="flex items-center gap-2 text-xs"><span class="text-gray-500 w-20 truncate">${cmd.message}</span><div class="flex-1 h-1.5 bg-gray-100 rounded-full"><div class="h-full bg-blue-400 rounded-full" style="width:${Math.round((cmd.count/maxC)*100)}%"></div></div><span class="font-medium text-gray-600 w-6 text-right">${cmd.count}</span></div>`;
+                }).join('')}
+              </div>
+            ` : ''}
+          ` : '<p class="text-xs text-gray-400 text-center py-4">Sin estadísticas disponibles</p>'}
+        </div>`;
+    }).join(''));
+  } catch (e) { document.getElementById('statsGrid').innerHTML = '<p class="text-gray-500 text-center py-10">Error al cargar estadísticas</p>'; }
+  hideLoading();
 }
 
 // ─── CRUD ───────────────────────────────────────────────────────

@@ -69,6 +69,9 @@ tailwind.config = {
         <button onclick="showView('plans')" class="nav-btn w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 flex items-center gap-3 text-sm font-medium">
           <span class="text-lg">💎</span> Planes
         </button>
+        <button onclick="showView('stats')" class="nav-btn w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 flex items-center gap-3 text-sm font-medium">
+          <span class="text-lg">📊</span> Estadísticas
+        </button>
         <button onclick="showView('support')" class="nav-btn w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 flex items-center gap-3 text-sm font-medium">
           <span class="text-lg">🎫</span> Soporte
         </button>
@@ -150,6 +153,12 @@ tailwind.config = {
       <div id="view-plans" class="flex-1 overflow-y-auto hidden p-6">
         <h2 class="text-xl font-semibold text-gray-800 mb-5">Planes</h2>
         <div id="plansList" class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl"></div>
+      </div>
+
+      <!-- Stats View -->
+      <div id="view-stats" class="flex-1 overflow-y-auto hidden p-6">
+        <h2 class="text-xl font-semibold text-gray-800 mb-5">📊 Estadísticas</h2>
+        <div id="statsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 max-w-5xl"></div>
       </div>
 
       <!-- Support View -->
