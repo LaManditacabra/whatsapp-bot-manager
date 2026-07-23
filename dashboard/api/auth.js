@@ -6,7 +6,7 @@ const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'whatsapp-
 export async function generateToken(user) {
   return new SignJWT({ userId: user.id, role: user.role })
     .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime('7d')
+    .setExpirationTime('30d')
     .sign(JWT_SECRET);
 }
 

@@ -6,9 +6,12 @@
     "dashboard": "node dashboard/api/index.js",
     "dev": "node --watch dashboard/api/index.js",
     "bot": "node src/index.js",
-    "electron": "cd electron && npm start",
+    "tauri": "tauri",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
   }
 }

@@ -12,6 +12,9 @@ import db from './db.js';
 import { generateToken, authMiddleware, adminMiddleware } from './auth.js';
 import { BotManager } from './bot-manager.js';
 import { configurePayPal, isPayPalConfigured, createOrder, captureOrder } from './paypal.js';
+import { THEMES } from './themes.js';
+import { FEATURES } from './features.js';
+import { generateMenuPdf } from './menu-pdf.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || join(__dirname, '..', '..', 'data');
@@ -19,7 +22,9 @@ const PORT = process.env.DASHBOARD_PORT || 3001;
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+const distPath = join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
 app.use(express.static(join(__dirname, '..', 'public')));
 app.use('/landing', express.static(join(__dirname, '..', '..', 'docs')));
 
@@ -75,8 +80,14 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, (req, res) => {
 app.put('/api/admin/users/:id', authMiddleware, adminMiddleware, (req, res) => {
   const { id } = req.params;
   const { role, plan, plan_bots_limit } = req.body;
-  db.prepare('UPDATE users SET role = ?, plan = ?, plan_bots_limit = ? WHERE id = ?')
-    .run(role || 'user', plan || 'free', plan_bots_limit ?? 1, id);
+  const updates = [];
+  const params = [];
+  if (role !== undefined) { updates.push('role = ?'); params.push(role); }
+  if (plan !== undefined) { updates.push('plan = ?'); params.push(plan); }
+  if (plan_bots_limit !== undefined) { updates.push('plan_bots_limit = ?'); params.push(plan_bots_limit); }
+  if (updates.length > 0) {
+    db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params, id);
+  }
   res.json({ success: true });
 });
 
@@ -218,6 +229,25 @@ app.get('/api/clients/:id/stream', authMiddleware, (req, res) => {
 });
 
 // ─── Products ───────────────────────────────────────────────────
+
+async function regenerateMenuPdf(clientId, clientName) {
+  try {
+    const products = db.prepare('SELECT * FROM client_products WHERE client_id = ? ORDER BY sort_order').all(clientId);
+    if (products.length === 0) return;
+    const pdfBuffer = await generateMenuPdf(products, clientName || 'Menú');
+    const pdfBase64 = pdfBuffer.toString('base64');
+    const existing = db.prepare('SELECT id FROM client_settings WHERE client_id = ? AND key = ?').get(clientId, 'menu_pdf');
+    if (existing) {
+      db.prepare('UPDATE client_settings SET value = ? WHERE client_id = ? AND key = ?').run(pdfBase64, clientId, 'menu_pdf');
+    } else {
+      db.prepare('INSERT INTO client_settings (client_id, key, value) VALUES (?, ?, ?)').run(clientId, 'menu_pdf', pdfBase64);
+    }
+    botManager.syncClientSettings(clientId);
+  } catch (err) {
+    console.error(`Error generating menu PDF for ${clientId}:`, err.message);
+  }
+}
+
 app.get('/api/clients/:id/products', authMiddleware, (req, res) => {
   const { id } = req.params;
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
@@ -236,13 +266,15 @@ app.post('/api/clients/:id/products', authMiddleware, (req, res) => {
   if (req.user.role !== 'admin' && client.user_id !== req.userId) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  const { name, description, price, category, emoji } = req.body;
+  const { name, description, price, category, emoji, image, stock, payment_link } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM client_products WHERE client_id = ?').get(id);
   const result = db.prepare(
-    'INSERT INTO client_products (client_id, name, description, price, category, emoji, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, name, description || '', price || null, category || 'General', emoji || '🔹', maxOrder.next);
+    'INSERT INTO client_products (client_id, name, description, price, category, emoji, image, stock, payment_link, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, name, description || '', price || null, category || 'General', emoji || '🔹', image || null, stock ?? 0, payment_link || null, maxOrder.next);
   const product = db.prepare('SELECT * FROM client_products WHERE id = ?').get(result.lastInsertRowid);
+  botManager.syncClientProducts(id);
+  regenerateMenuPdf(id, client.business_name || client.name);
   res.status(201).json(product);
 });
 
@@ -253,11 +285,13 @@ app.put('/api/clients/:id/products/:productId', authMiddleware, (req, res) => {
   if (req.user.role !== 'admin' && client.user_id !== req.userId) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  const { name, description, price, category, emoji } = req.body;
+  const { name, description, price, category, emoji, image, stock, payment_link } = req.body;
   db.prepare(
-    'UPDATE client_products SET name = ?, description = ?, price = ?, category = ?, emoji = ? WHERE id = ? AND client_id = ?'
-  ).run(name, description, price, category, emoji, productId, id);
+    'UPDATE client_products SET name = ?, description = ?, price = ?, category = ?, emoji = ?, image = ?, stock = ?, payment_link = ? WHERE id = ? AND client_id = ?'
+  ).run(name, description, price, category, emoji, image || null, stock ?? 0, payment_link || null, productId, id);
   const product = db.prepare('SELECT * FROM client_products WHERE id = ?').get(productId);
+  botManager.syncClientProducts(id);
+  regenerateMenuPdf(id, client.business_name || client.name);
   res.json(product);
 });
 
@@ -269,7 +303,57 @@ app.delete('/api/clients/:id/products/:productId', authMiddleware, (req, res) =>
     return res.status(403).json({ error: 'Forbidden' });
   }
   db.prepare('DELETE FROM client_products WHERE id = ? AND client_id = ?').run(productId, id);
+  botManager.syncClientProducts(id);
+  regenerateMenuPdf(id, client.business_name || client.name);
   res.json({ success: true });
+});
+
+// ─── Orders ─────────────────────────────────────────────────────
+app.get('/api/clients/:id/orders', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const botDbPath = join(DATA_DIR, 'clients', id, 'bot.db');
+  if (!existsSync(botDbPath)) return res.json([]);
+  let botDb;
+  try {
+    botDb = new Database(botDbPath, { readonly: true });
+    const orders = botDb.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 100').all();
+    res.json(orders);
+  } catch (e) {
+    res.status(500).json({ error: 'Error reading orders' });
+  } finally {
+    if (botDb) try { botDb.close(); } catch {}
+  }
+});
+
+app.put('/api/clients/:id/orders/:orderId', authMiddleware, (req, res) => {
+  const { id, orderId } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { status } = req.body;
+  if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  const botDbPath = join(DATA_DIR, 'clients', id, 'bot.db');
+  if (!existsSync(botDbPath)) return res.status(404).json({ error: 'Bot DB not found' });
+  let botDb;
+  try {
+    botDb = new Database(botDbPath);
+    botDb.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, orderId);
+    const order = botDb.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    res.json(order);
+  } catch (e) {
+    res.status(500).json({ error: 'Error updating order' });
+  } finally {
+    if (botDb) try { botDb.close(); } catch {}
+  }
 });
 
 // ─── Keywords / Auto-responder ──────────────────────────────────
@@ -323,6 +407,164 @@ app.delete('/api/clients/:id/keywords/:kwId', authMiddleware, (req, res) => {
   res.json({ success: true });
 });
 
+// ─── Coupons ────────────────────────────────────────────────────
+app.get('/api/clients/:id/coupons', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+  const coupons = db.prepare('SELECT * FROM client_coupons WHERE client_id = ? ORDER BY created_at DESC').all(id);
+  res.json(coupons);
+});
+
+app.post('/api/clients/:id/coupons', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+  const { code, discount_type, discount_value, max_uses, expires_at } = req.body;
+  if (!code) return res.status(400).json({ error: 'Code is required' });
+  try {
+    const result = db.prepare('INSERT INTO client_coupons (client_id, code, discount_type, discount_value, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(id, code.toUpperCase(), discount_type || 'percentage', discount_value || 10, max_uses || 0, expires_at || null);
+    const coupon = db.prepare('SELECT * FROM client_coupons WHERE id = ?').get(result.lastInsertRowid);
+    botManager.syncClientCoupons(id);
+    res.status(201).json(coupon);
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Ya existe un cupón con ese código' });
+    throw e;
+  }
+});
+
+app.put('/api/clients/:id/coupons/:cid', authMiddleware, (req, res) => {
+  const { id, cid } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+  const { code, discount_type, discount_value, max_uses, active, expires_at } = req.body;
+  db.prepare('UPDATE client_coupons SET code = ?, discount_type = ?, discount_value = ?, max_uses = ?, active = ?, expires_at = ? WHERE id = ? AND client_id = ?')
+    .run(code, discount_type, discount_value, max_uses, active ?? 1, expires_at, cid, id);
+  botManager.syncClientCoupons(id);
+  const coupon = db.prepare('SELECT * FROM client_coupons WHERE id = ?').get(cid);
+  res.json(coupon);
+});
+
+app.delete('/api/clients/:id/coupons/:cid', authMiddleware, (req, res) => {
+  const { id, cid } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+  db.prepare('DELETE FROM client_coupons WHERE id = ? AND client_id = ?').run(cid, id);
+  botManager.syncClientCoupons(id);
+  res.json({ success: true });
+});
+
+// ─── Reminders ──────────────────────────────────────────────────
+app.get('/api/clients/:id/reminders', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+  const reminders = db.prepare('SELECT * FROM client_reminders WHERE client_id = ? ORDER BY created_at DESC').all(id);
+  res.json(reminders);
+});
+
+app.post('/api/clients/:id/reminders', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+  const { title, message, frequency, day_of_week, time } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title is required' });
+  const result = db.prepare('INSERT INTO client_reminders (client_id, title, message, frequency, day_of_week, time) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, title, message || '', frequency || 'once', day_of_week || null, time || '10:00');
+  const reminder = db.prepare('SELECT * FROM client_reminders WHERE id = ?').get(result.lastInsertRowid);
+  botManager.syncClientReminders(id);
+  res.status(201).json(reminder);
+});
+
+app.put('/api/clients/:id/reminders/:rid', authMiddleware, (req, res) => {
+  const { id, rid } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+  const { title, message, frequency, day_of_week, time, active } = req.body;
+  db.prepare('UPDATE client_reminders SET title = ?, message = ?, frequency = ?, day_of_week = ?, time = ?, active = ? WHERE id = ? AND client_id = ?')
+    .run(title, message, frequency, day_of_week, time, active ?? 1, rid, id);
+  botManager.syncClientReminders(id);
+  const reminder = db.prepare('SELECT * FROM client_reminders WHERE id = ?').get(rid);
+  res.json(reminder);
+});
+
+app.delete('/api/clients/:id/reminders/:rid', authMiddleware, (req, res) => {
+  const { id, rid } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+  db.prepare('DELETE FROM client_reminders WHERE id = ? AND client_id = ?').run(rid, id);
+  botManager.syncClientReminders(id);
+  res.json({ success: true });
+});
+
+// ─── Themes ───────────────────────────────────────────────────
+app.get('/api/themes', (req, res) => {
+  res.json(THEMES);
+});
+
+// ─── Features ──────────────────────────────────────────────────
+app.get('/api/features', (req, res) => {
+  res.json(FEATURES);
+});
+
+app.get('/api/clients/:id/features', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const row = db.prepare('SELECT value FROM client_settings WHERE client_id = ? AND key = ?').get(id, 'features');
+  const enabled = row?.value ? JSON.parse(row.value) : [];
+  res.json({ enabled });
+});
+
+app.put('/api/clients/:id/features', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const { featureId, enabled } = req.body;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  if (req.user.role !== 'admin' && client.user_id !== req.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const feat = FEATURES.find(f => f.id === featureId);
+  if (!feat) return res.status(400).json({ error: 'Feature not found' });
+
+  // Validate plan
+  if (enabled && feat.plan !== 'free') {
+    const user = db.prepare('SELECT plan FROM users WHERE id = ?').get(client.user_id);
+    const planRank = { free: 0, premium: 1, unlimited: 2 };
+    const requiredRank = planRank[feat.plan] ?? 99;
+    if (planRank[user.plan] < requiredRank) {
+      return res.status(403).json({
+        error: `Se requiere plan ${feat.plan === 'premium' ? 'Premium' : 'Unlimited'} para activar "${feat.name}"`,
+        requiredPlan: feat.plan,
+      });
+    }
+  }
+
+  const row = db.prepare('SELECT value FROM client_settings WHERE client_id = ? AND key = ?').get(id, 'features');
+  let enabledList = row?.value ? JSON.parse(row.value) : [];
+  if (enabled) {
+    if (!enabledList.includes(featureId)) enabledList.push(featureId);
+  } else {
+    enabledList = enabledList.filter(f => f !== featureId);
+  }
+  db.prepare('INSERT OR REPLACE INTO client_settings (client_id, key, value) VALUES (?, ?, ?)')
+    .run(id, 'features', JSON.stringify(enabledList));
+  botManager.syncClientSettings(id);
+  res.json({ enabled: enabledList });
+});
+
 // ─── Settings ───────────────────────────────────────────────────
 app.get('/api/clients/:id/settings', authMiddleware, (req, res) => {
   const { id } = req.params;
@@ -353,6 +595,8 @@ app.put('/api/clients/:id/settings', authMiddleware, (req, res) => {
     }
   });
   txn(req.body);
+  // Sync theme & settings to bot worker
+  botManager.syncClientSettings(id);
   res.json({ success: true });
 });
 
@@ -387,8 +631,9 @@ app.get('/api/clients/:id/stats', authMiddleware, (req, res) => {
   }
   const botDbPath = join(DATA_DIR, 'clients', id, 'bot.db');
   if (!existsSync(botDbPath)) return res.json({ total_messages: 0, total_users: 0, total_orders: 0, commands: {}, last_week: [] });
+  let botDb;
   try {
-    const botDb = new Database(botDbPath, { readonly: true });
+    botDb = new Database(botDbPath, { readonly: true });
     const totalMessages = botDb.prepare('SELECT COUNT(*) as count FROM conversations').get().count;
     const totalUsers = botDb.prepare('SELECT COUNT(DISTINCT user_id) as count FROM conversations').get().count;
     const totalOrders = botDb.prepare("SELECT COUNT(*) as count FROM conversations WHERE message LIKE '%!pedido%'").get().count;
@@ -402,10 +647,11 @@ app.get('/api/clients/:id/stats', authMiddleware, (req, res) => {
       FROM conversations WHERE created_at >= datetime('now', '-7 days')
       GROUP BY day ORDER BY day
     `).all();
-    botDb.close();
     res.json({ total_messages: totalMessages, total_users: totalUsers, total_orders: totalOrders, commands, last_week: lastWeek });
   } catch (e) {
     res.status(500).json({ error: 'Error reading stats' });
+  } finally {
+    if (botDb) try { botDb.close(); } catch {}
   }
 });
 
@@ -477,6 +723,38 @@ app.put('/api/tickets/:id/status', authMiddleware, adminMiddleware, (req, res) =
     return res.status(400).json({ error: 'Status inválido' });
   }
   db.prepare("UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, id);
+  res.json({ success: true });
+});
+
+// ─── Notifications ──────────────────────────────────────────────
+app.get('/api/notifications', authMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+  let notifications, unread;
+  if (req.user.role === 'admin') {
+    notifications = db.prepare('SELECT * FROM notifications ORDER BY created_at DESC LIMIT ?').all(limit);
+    unread = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE read = 0').get().count;
+  } else {
+    notifications = db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?').all(req.userId, limit);
+    unread = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read = 0').get(req.userId).count;
+  }
+  res.json({ notifications, unread });
+});
+
+app.post('/api/notifications', authMiddleware, (req, res) => {
+  const { type, title, message, data, user_id } = req.body;
+  if (!type || !title) return res.status(400).json({ error: 'type and title required' });
+  const targetUserId = user_id || req.userId;
+  db.prepare('INSERT INTO notifications (user_id, type, title, message, data) VALUES (?, ?, ?, ?, ?)')
+    .run(targetUserId, type, title, message || '', data ? JSON.stringify(data) : null);
+  res.json({ success: true });
+});
+
+app.put('/api/notifications/read', authMiddleware, (req, res) => {
+  if (req.user.role === 'admin') {
+    db.prepare('UPDATE notifications SET read = 1 WHERE read = 0').run();
+  } else {
+    db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0').run(req.userId);
+  }
   res.json({ success: true });
 });
 

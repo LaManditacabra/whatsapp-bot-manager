@@ -56,29 +56,6 @@ export function createClientDb(clientId) {
       updated_at TEXT DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS menu_categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      emoji TEXT DEFAULT '📋',
-      sort_order INTEGER DEFAULT 0,
-      is_active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS menu_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      category_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT,
-      price REAL,
-      emoji TEXT DEFAULT '🔹',
-      is_active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (category_id) REFERENCES menu_categories(id) ON DELETE CASCADE
-    );
-
     CREATE TABLE IF NOT EXISTS client_products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -86,6 +63,9 @@ export function createClientDb(clientId) {
       price REAL,
       category TEXT DEFAULT 'General',
       emoji TEXT DEFAULT '🔹',
+      image TEXT,
+      stock INTEGER DEFAULT 0,
+      payment_link TEXT,
       sort_order INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -95,6 +75,17 @@ export function createClientDb(clientId) {
       key TEXT NOT NULL,
       value TEXT,
       UNIQUE(key)
+    );
+
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      user_name TEXT DEFAULT '',
+      items TEXT NOT NULL,
+      total REAL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
     );
   `);
 

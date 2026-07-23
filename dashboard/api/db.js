@@ -47,6 +47,8 @@ db.exec(`
     price REAL,
     category TEXT DEFAULT 'General',
     emoji TEXT DEFAULT '🔹',
+    stock INTEGER DEFAULT 0,
+    payment_link TEXT,
     sort_order INTEGER DEFAULT 0,
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
   );
@@ -107,7 +109,59 @@ db.exec(`
     end_date TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT,
+    data TEXT,
+    read INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS client_coupons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    discount_type TEXT NOT NULL DEFAULT 'percentage',
+    discount_value REAL NOT NULL DEFAULT 10,
+    max_uses INTEGER DEFAULT 0,
+    used_count INTEGER DEFAULT 0,
+    active INTEGER DEFAULT 1,
+    expires_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(client_id, code),
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS client_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL DEFAULT '',
+    frequency TEXT NOT NULL DEFAULT 'once',
+    day_of_week INTEGER,
+    time TEXT NOT NULL DEFAULT '10:00',
+    last_sent TEXT,
+    active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+  );
 `);
+
+  // Compatibility: add columns to client_products if missing
+  const productCols = db.prepare("PRAGMA table_info('client_products')").all();
+  if (!productCols.some(c => c.name === 'image')) {
+    db.exec("ALTER TABLE client_products ADD COLUMN image TEXT");
+  }
+  if (!productCols.some(c => c.name === 'stock')) {
+    db.exec("ALTER TABLE client_products ADD COLUMN stock INTEGER DEFAULT 0");
+  }
+  if (!productCols.some(c => c.name === 'payment_link')) {
+    db.exec("ALTER TABLE client_products ADD COLUMN payment_link TEXT");
+  }
 
   // Compatibility: add columns if missing (for upgrade from old schema)
   const tableInfo = db.prepare("PRAGMA table_info('users')").all();

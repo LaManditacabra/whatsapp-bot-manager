@@ -3,8 +3,10 @@
 # BotAr — SaaS de gestión de bots WhatsApp
 
 ## Stack
-- Node.js ESM, Baileys v7, SQLite (better-sqlite3), Express, Electron, Docker Compose
-- Frontend: HTML+JS vanilla con Tailwind CDN
+- Node.js ESM, Baileys v7, SQLite (better-sqlite3), Express, Docker Compose
+- Frontend: React 19 + Vite + Tailwind v4
+- Desktop: Tauri v2 (Rust)
+- Túnel: Cloudflare Tunnel (trycloudflare.com) temporal
 
 ## Estructura
 
@@ -13,15 +15,22 @@
 /dashboard/api/db.js            → SQLite dashboard.db (usuarios, clientes, productos, settings)
 /dashboard/api/auth.js          → JWT + middlewares (authMiddleware, adminMiddleware)
 /dashboard/api/bot-manager.js   → Forkea workers, IPC, heartbeat, auto-restart
-/dashboard/public/index.html    → Frontend login/registro/panel
-/dashboard/public/app.js        → Lógica frontend
+/dashboard/index.html           → Entry Vite
+/dashboard/src/                 → React (componentes)
+/dashboard/src/components/      → Auth, Sidebar, BotList, BotDetail, Users, Settings, Plans, Stats, Support, Modals
+/dashboard/dist/                → Build de React (servido por Express)
+/dashboard/public/logo.svg      → Logo SVG
+/dashboard/vite.config.js       → Vite + proxy API
+/dashboard/Dockerfile           → Multi-stage: build React + server
 
 /bot/worker.js                  → Child process con Baileys
 /bot/database.js                → SQLite bot.db por cliente (users, conversations, etc.)
 
-/electron/main.js               → Wrapper de escritorio, apunta a la URL del servidor
-/docker-compose.yml             → Servicio dashboard, PostgreSQL en legacy profile
-/Dockerfile                     → Build dashboard + bot
+/src-tauri/                     → Tauri v2 (Rust)
+/src-tauri/src/lib.rs           → Webview, URL hardcodeada del túnel
+/src-tauri/tauri.conf.json      → Config Tauri (apunta a dashboard/dist/)
+
+/docker-compose.yml             → Servicio dashboard
 ```
 
 ## Base de datos
@@ -218,34 +227,72 @@ Domingos: Cerrado
 - **DDNS no-ip**: configurado pero no funciona por CGNAT de Movistar
 - **ngrok**: alternativa probada para acceso externo sin abrir puertos
 
+### Sesión 19/07/2026
+- **React + Vite**: frontend migrado de vanilla HTML+JS a React con componentes reutilizables
+  - `dashboard/src/` con componentes: Auth, Sidebar, BotList, BotDetail, Users, Settings, Plans, StatsView, Support, Modals
+  - Tailwind v4 con `@tailwindcss/postcss`, tema custom (mismos colores indigo)
+  - Vite build → `dashboard/dist/`, Express lo sirve en producción
+  - Vite dev server (5173) con proxy API a Express (3001)
+  - Hot reload automático en desarrollo
+- **Tauri v2**: configurado completamente
+  - `src-tauri/` con Cargo.toml, tauri.conf.json, lib.rs, íconos generados
+  - `.exe` build exitoso desde Windows (PowerShell)
+  - Por defecto apunta a URL del túnel Cloudflare
+- **Docker multi-stage**: actualizado `dashboard/Dockerfile` para buildear React + server
+- **Tailscale Funnel**: URL fija y permanente, funciona con CGNAT
+  - URL actual: `https://desktop-6acpbav.tailcf1d70.ts.net`
+  - `tailscale funnel --bg 3001` (ya no requiere Cloudflare Tunnel)
+- **Admin email**: cambiado de `admin` a `admin@botar.com` (requerido por validación HTML5 type="email")
+
+### Sesión 22/07/2026
+- **Selector de temas** rediseñado: de dropdown a grid responsive de cards (2-5 columnas) con checkmark de selección
+- **10 temas visuales** redefinidos con emojis coherentes y separadores decorativos:
+  - Clásico 🕊️, Moderno ◇, Minimal ──, Osado ★彡 (borde █), Elegante ✦ (borde ═)
+  - Oceano 🌊, Atardecer 🌅, Neón 💜 (borde ▬), Naturaleza 🌿, Real 👑 (borde ═)
+- **Propiedad `borderChar`** en temas: cuando no es null, envuelve el mensaje completo con el caracter repetido, usando `wrapBorder()` en worker.js (ancho máximo 44 chars, contenido indentado 2 espacios)
+- **Panel de personalización** (`✎ Personalizar`): togglea 12 campos editables con vista previa en vivo; solo guarda valores que difieran del tema base como `custom_theme_*` en settings (evita guardar vacíos)
+- **Crear tema personalizado** (`ThemeCreator.jsx`): modal con los 12 campos, vista previa en vivo, guarda como tema en `saved_themes` JSON array en `client_settings`, notifica al admin via `POST /api/notifications`
+- **Temas guardados** aparecen en la grid con borde verde, se pueden seleccionar y eliminar (✕), persisten en `client_settings.saved_themes`
+- **Notificaciones admin**: tabla `notifications` en dashboard.db, API endpoints `GET/POST /api/notifications` y `PUT /api/notifications/read`, badge con contador en sidebar (polling cada 15s), timbre desactiva al clickear
+- **Notificación automática**: al crear un tema personalizado, se genera notificación para el admin con nombre e ícono del tema
+
 ## Próximos pasos
 1. **DDNS + Cloudflare**: dominio gratis (no-ip.com) ocultando IP real con Cloudflare
-2. **Mejoras frontend**:
-   - ~~Editar productos inline~~ (✅ ya implementado)
-   - ~~Editar nombre/teléfono del bot~~ (✅ ya implementado)
-   - ~~Loading states en operaciones~~ (✅ completado: register, login, updateUser, updateUserRole, upgradePlan)
-3. **Build Electron para distribución**: empaquetar app de escritorio
+2. ~~**Migrar a React + Vite**~~ (✅ implementado)
+3. ~~**Build Tauri para distribución**~~ (✅ implementado, .exe generado)
 4. ~~**Sistema de tickets / soporte**~~ (✅ implementado)
 5. ~~**Estadísticas por bot**~~ (✅ implementado)
+6. ~~**Dominio propio + Cloudflare Tunnel permanente**~~ (✅ reemplazado por Tailscale Funnel)
+
+## Build Tauri (Windows)
+
+El proyecto ya tiene la estructura `src-tauri/` con íconos generados.
+
+1. Abrí **PowerShell / CMD desde Windows** (no WSL) en la carpeta del proyecto
+2. Instalá Rust: https://rustup.rs
+3. Instalá Visual Studio Build Tools (o VS Community) con workloads "Desktop development with C++"
+4. Corré:
+```bash
+npm install -D @tauri-apps/cli@latest
+npm run tauri build
+```
+
+El `.exe` va a salir en `src-tauri/target/release/botar.exe`.
 
 ## Cómo correr
 ```bash
 # Desarrollo local
 docker compose up -d
 
+# Desarrollo frontend (hot reload)
+cd dashboard && npm run dev:frontend
+
 # Logs
 docker compose logs -f
 
-# Rebuild
-docker compose build --no-cache && docker compose up -d
+# Rebuild Docker
+docker compose build dashboard && docker compose up -d
 
-# Producción en PC propia (sin VPS)
-# 1. Abrir puerto 3001 en el firewall de Windows/router
-# 2. Usar IP pública (ej: http://186.xxx.xxx.xxx:3001)
-# 3. En el Electron: DASHBOARD_URL=http://186.xxx.xxx.xxx:3001 electron/.
-# 4. La PC debe quedar encendida 24/7
-# 5. Si el ISP cambia la IP, toca usar DDNS (ej: no-ip.com)
-
-# Producción en VPS (recomendado)
-# DASHBOARD_URL=https://tudominio.com electron/.
+# Tailscale Funnel (URL fija sin abrir puertos)
+tailscale funnel --bg 3001
 ```
