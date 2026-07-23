@@ -3,3 +3,30 @@ node_modules/
 auth/
 data/
 *.log
+
+# Build output
+dashboard/dist/
+
+# Rust / Tauri build artifacts
+src-tauri/target/
+
+# Executables
+*.exe
+*.dll
+*.so
+*.dylib
+
+# SQLite databases
+*.db
+*.db-wal
+*.db-shm
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
